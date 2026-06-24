@@ -1,25 +1,25 @@
 <?php
-// Rileva automaticamente se l'ambiente è Docker locale o Hostinger remoto
-$is_local = (getenv('IS_LOCAL') === 'true' || $_SERVER['HTTP_HOST'] === 'localhost:8080');
+// Rileva se siamo nell'ambiente Docker locale o su Hostinger
+define('IS_LOCAL', (getenv('IS_LOCAL') === 'true' || $_SERVER['HTTP_HOST'] === 'localhost:8080'));
 
-if ($is_local) {
-    // Configurazione Docker Local Container
-    define('DB_HOST', 'db'); // Nome del servizio nel docker-compose
-    define('DB_NAME', 'primefactory_local');
-    define('DB_USER', 'prime_user');
-    define('DB_PASS', 'local_secure_pass');
+if (IS_LOCAL) {
+    // Caricamento dinamico tramite variabili iniettate dal file .env
+    define('DB_HOST', getenv('DB_HOST') ?: 'db');
+    define('DB_NAME', getenv('DB_NAME') ?: 'primefactory_local');
+    define('DB_USER', getenv('DB_USER') ?: 'prime_user');
+    define('DB_PASS', getenv('DB_PASS') ?: 'local_secure_pass');
 
-    define('SMTP_HOST', 'sandbox.smtp.mailtrap.io'); // Consigliato per i test locali
-    define('SMTP_PORT', 2525);
-    define('SMTP_USER', 'tuo_user_test');
-    define('SMTP_PASS', 'tuo_pass_test');
-    define('ADMIN_EMAIL', 'test-admin@primefactory.local');
+    define('SMTP_HOST', getenv('SMTP_HOST')); 
+    define('SMTP_PORT', (int)getenv('SMTP_PORT'));
+    define('SMTP_USER', getenv('SMTP_USER'));
+    define('SMTP_PASS', getenv('SMTP_PASS'));
+    define('ADMIN_EMAIL', getenv('ADMIN_EMAIL'));
 } else {
-    // Configurazione di Produzione Hostinger (Branch Main)
-    define('DB_HOST', 'localhost'); 
+    // Configurazione di Produzione Hostinger (attiva sul branch main)
+    define('DB_HOST', 'localhost');
     define('DB_NAME', 'u_prime_factory_db'); 
     define('DB_USER', 'u_prime_user');       
-    define('DB_PASS', 'PROD_SUPER_SECURE_PASSWORD_2026!'); 
+    define('DB_PASS', 'CambiamiConPasswordForteHostinger2026!'); 
 
     define('SMTP_HOST', 'smtp.hostinger.com');
     define('SMTP_PORT', 587);
@@ -30,15 +30,15 @@ if ($is_local) {
 
 function getDBConnection() {
     try {
-        $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4", DB_USER, DB_PASS, [
+        return new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4", DB_USER, DB_PASS, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
-        return $pdo;
     } catch (PDOException $e) {
-        error_log("[" . date('Y-m-d H:i:s') . "] DB Error: " . $e->getMessage());
-        die(json_encode(['success' => false, 'error' => 'Errore di connessione al database.']));
+        error_log("[" . date('Y-m-d H:i:s') . "] Errore Connessione DB: " . $e->getMessage());
+        header('Content-Type: application/json', true, 500);
+        die(json_encode(['success' => false, 'error' => 'Connessione al database fallita.']));
     }
 }
 
