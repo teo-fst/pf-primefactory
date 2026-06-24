@@ -1,0 +1,15 @@
+{
+  "name": "PrimeFactory Dev Environment",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "web",
+  "workspaceFolder": "/var/www/html",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bmewburn.vscode-intelephense-client",
+        "xdebug.php-debug",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  }
+}

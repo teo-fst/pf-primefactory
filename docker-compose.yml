@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  web:
+    image: php:8.2-apache
+    container_name: primefactory_web
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - ./docker/apache/vhost.conf:/etc/apache2/sites-available/000-default.conf
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
+    environment:
+      - IS_LOCAL=true
+    depends_on:
+      - db
+    networks:
+      - primefactory_net
+
+  db:
+    image: mysql:8.0
+    container_name: primefactory_db
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_DATABASE=primefactory_local
+      - MYSQL_USER=prime_user
+      - MYSQL_PASSWORD=local_secure_pass
+      - MYSQL_ROOT_PASSWORD=root_secure_pass
+    volumes:
+      - primefactory_db_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - primefactory_net
+
+networks:
+  primefactory_net:
+    driver: bridge
+
+volumes:
+  primefactory_db_data:
