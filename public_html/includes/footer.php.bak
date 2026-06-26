@@ -1,0 +1,6 @@
+<footer class="w-full text-center py-6 text-xs text-slate-500 border-t border-slate-900/60 relative z-10">
+    <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+        <div>&copy; 2026 PrimeFactory. Precisione tecnica e servizio trasparente.</div>
+        <div class="text-[10px] text-slate-600">Protezione dati e supporto clienti con approccio circolare.</div>
+    </div>
+</footer>

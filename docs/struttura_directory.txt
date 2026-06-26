@@ -1,0 +1,38 @@
+E:\02_Sviluppo\Clienti\pf-primefactory\
+├── .git/                 (Cartella Git, generata automaticamente)
+├── .gitignore            (File per escludere cartelle come /vendor e /uploads)
+├── .env                  (Variabili d'ambiente locali: NON su Git)
+├── docker-compose.yml    (Configurazione dei container web + db)
+├── Dockerfile            (Personalizzazione ambiente Apache/PHP)
+├── database/
+│   └── schema.sql        (Script per la struttura del database)
+├── docker/
+│   ├── apache/
+│   │   └── vhost.conf    (Configurazione host virtuale Apache)
+│   └── php/
+│       └── php.ini       (Limiti di upload e configurazioni PHP)
+├── public_html/          (La root pubblica del sito)
+│   ├── .htaccess         (Regole di routing e sicurezza)
+│   ├── index.php         (Landing page principale)
+│   ├── chi-siamo.php
+│   ├── fedelta.php
+│   ├── privacy.php
+│   ├── servizi.php
+│   ├── preventivo.php    (Form multi-step)
+│   ├── form_handler.php  (Logica backend sottomissione)
+│   ├── config.php        (Connessione DB e variabili globali)
+│   ├── verify_referral.php (Validazione codici sconto AJAX)
+│   ├── assets/
+|   │   ├── css/
+|   |   │   ├── palette.scss (palette da utilizzare nella realizzazione del sito)
+|   │   │   └── style.css (Cartella dove risiedono tutti gli stili delle pagine)
+|   │   ├── images/       (Cartella contenente immagini, tracce audio e video)
+|   │   └── js/
+|   │       └── script.js (Cartella dove risiedono tutte le funzioni javascript)
+├   ├── includes/         (Cartella dove sono presenti frammenti di codice da riutilizzare)
+│   │   └── header.php
+│   │   └── footer.php
+│   ├── uploads/          (Cartella destinazione file clienti - .htaccess incluso qui)
+│   │   └── .htaccess     (Regole per impedire l'esecuzione di script malevoli)
+│   └── vendor/           (Librerie installate via Composer - ignorata da Git)
+└── composer.json         (Definizione dipendenze, es. PHPMailer)

@@ -1,0 +1,39 @@
+:root {
+    color-scheme: dark;
+    --bg: #0f172a;
+    --panel: rgba(30, 41, 59, 0.75);
+    --border: rgba(148, 163, 184, 0.12);
+}
+
+body {
+    background: radial-gradient(circle at top left, rgba(14, 165, 233, 0.14), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.1), transparent 28%),
+        #0f172a;
+}
+
+.glass-card,
+.glass-panel {
+    background: var(--panel);
+    backdrop-filter: blur(18px);
+    border: 1px solid var(--border);
+}
+
+::selection {
+    background: rgba(56, 189, 248, 0.35);
+}
+
+button,
+input,
+select,
+textarea {
+    font-family: inherit;
+}
+
+a {
+    text-decoration: none;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+}

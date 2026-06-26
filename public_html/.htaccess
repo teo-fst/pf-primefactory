@@ -1,10 +1,12 @@
-# Gestione del motore di riscrittura di Apache
-RewriteEngine On
+php_value upload_max_filesize 64M
+php_value post_max_size 80M
+php_value max_execution_time 300
+php_value memory_limit 256M
 
-# Forza HTTPS in produzione (Salta la regola se siamo in locale su localhost)
-RewriteCond %{HTTP_HOST} !=localhost:8080
+# Forzatura HTTPS
+RewriteEngine On
 RewriteCond %{HTTPS} off
 RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-# Impedisce il listing delle cartelle (sicurezza)
+# Abilita file upload multipli per il form
 Options -Indexes

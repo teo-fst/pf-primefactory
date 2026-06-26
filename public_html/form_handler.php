@@ -1,130 +1,181 @@
 <?php
 header('Content-Type: application/json');
-require_once 'config.php';
-
-// Caricamento librerie tramite Composer installato nel Container
-require 'vendor/autoload.php'; 
+require_once __DIR__ . '/config.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
+require_once __DIR__ . '/../vendor/autoload.php';
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'error' => 'Richiesta non valida.']);
+    echo json_encode(['success' => false, 'message' => 'Metodo non consentito.']);
     exit;
 }
 
-$pdo = getDBConnection();
+$clientName = sanitizeText($_POST['client_name'] ?? '');
+$clientEmail = filter_var(trim($_POST['client_email'] ?? ''), FILTER_VALIDATE_EMAIL);
+$referralCode = strtoupper(sanitizeText($_POST['referral_code'] ?? ''));
+$serviceType = sanitizeText($_POST['service_type'] ?? '');
+$preferredTechnology = sanitizeText($_POST['preferred_technology'] ?? '');
+$preferredMaterial = sanitizeText($_POST['preferred_material'] ?? '');
+$givedMaterial = sanitizeText($_POST['gived_material'] ?? '');
+$quantityPlastic = filter_var($_POST['quantity_plastic'] ?? null, FILTER_VALIDATE_FLOAT);
+$projectNotes = sanitizeText($_POST['project_notes'] ?? '');
+$privacyConsent = isset($_POST['privacy_consent']) ? (int) $_POST['privacy_consent'] : 0;
 
-// Sanitizzazione Input
-$client_name = filter_input(INPUT_POST, 'client_name', FILTER_UNSAFE_RAW);
-$client_email = filter_input(INPUT_POST, 'client_email', FILTER_VALIDATE_EMAIL);
-$referral_code_id = filter_input(INPUT_POST, 'referral_code_id', FILTER_VALIDATE_INT) ?: null;
-$service_type = filter_input(INPUT_POST, 'service_type', FILTER_UNSAFE_RAW);
-$technology = filter_input(INPUT_POST, 'technology', FILTER_UNSAFE_RAW) ?: null;
-$material = filter_input(INPUT_POST, 'material', FILTER_UNSAFE_RAW) ?: null;
-$quantity_kg = filter_input(INPUT_POST, 'quantity_kg', FILTER_VALIDATE_FLOAT);
-$project_notes = filter_input(INPUT_POST, 'project_notes', FILTER_UNSAFE_RAW);
-$privacy_consent = filter_input(INPUT_POST, 'privacy_consent', FILTER_VALIDATE_BOOLEAN);
-
-if (strlen($client_name) < 3 || !$client_email || !$quantity_kg || empty($project_notes) || !$privacy_consent) {
-    echo json_encode(['success' => false, 'error' => 'Verificare la correttezza dei dati obbligatori inseriti.']);
+if (mb_strlen($clientName) < 3) {
+    echo json_encode(['success' => false, 'message' => 'Inserisci un nome o una ragione sociale valida.']);
     exit;
 }
 
-// Validazione Files Server-side
-$allowed_exts = ['png', 'jpg', 'jpeg', 'stl', 'step', 'stp', 'igs', 'obj'];
-$max_size = 35 * 1024 * 1024; // 35MB
-$uploaded_files = [];
-
-if (!empty($_FILES['project_files']['name'][0])) {
-    $files = $_FILES['project_files'];
-    for ($i = 0; $i < count($files['name']); $i++) {
-        if ($files['error'][$i] !== UPLOAD_ERR_OK) {
-            echo json_encode(['success' => false, 'error' => 'Errore nel caricamento del file.']);
-            exit;
-        }
-        if ($files['size'][$i] > $max_size) {
-            echo json_encode(['success' => false, 'error' => 'Uno dei file supera la dimensione limite di 35MB.']);
-            exit;
-        }
-        $ext = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
-        if (!in_array($ext, $allowed_exts)) {
-            echo json_encode(['success' => false, 'error' => "Estensione .{$ext} non supportata."]);
-            exit;
-        }
-        $uploaded_files[] = [
-            'tmp' => $files['tmp_name'][$i],
-            'orig' => basename($files['name'][$i]),
-            'size' => $files['size'][$i],
-            'ext' => $ext
-        ];
-    }
+if (!$clientEmail) {
+    echo json_encode(['success' => false, 'message' => 'L’indirizzo email non è valido.']);
+    exit;
 }
+
+if (!in_array($serviceType, ['ready', 'needs_cad', 'give_plastic'], true)) {
+    echo json_encode(['success' => false, 'message' => 'Seleziona una tipologia di servizio.']);
+    exit;
+}
+
+if ($serviceType === 'give_plastic' && ($quantityPlastic === false || $quantityPlastic < 1 || $quantityPlastic > 20)) {
+    echo json_encode(['success' => false, 'message' => 'La stima del peso deve essere compresa tra 1 e 20 kg.']);
+    exit;
+}
+
+if ($projectNotes === '') {
+    echo json_encode(['success' => false, 'message' => 'Le note sul progetto sono obbligatorie.']);
+    exit;
+}
+
+if ((int) $privacyConsent !== 1) {
+    echo json_encode(['success' => false, 'message' => 'Per procedere devi accettare il consenso privacy.']);
+    exit;
+}
+
+$allowedExtensions = ['png', 'jpg', 'jpeg'];
+$allowedMimeTypes = ['image/png', 'image/jpeg', 'image/pjpeg'];
+$maxFileSize = 35 * 1024 * 1024;
 
 try {
+    ensureUploadDirectory();
+    $pdo = getDBConnection();
     $pdo->beginTransaction();
 
-    // Inserimento / Recupero Cliente
-    $stmt = $pdo->prepare("INSERT INTO clients (name, email) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = ?, id = LAST_INSERT_ID(id)");
-    $stmt->execute([$client_name, $client_email, $client_name]);
-    $client_id = $pdo->lastInsertId();
+    $stmt = $pdo->prepare('SELECT id FROM clients WHERE email = :email LIMIT 1');
+    $stmt->execute(['email' => $clientEmail]);
+    $clientId = $stmt->fetchColumn();
 
-    // Inserimento della Richiesta
-    $stmt = $pdo->prepare("INSERT INTO quote_requests (client_id, service_type, technology, material, quantity_kg, referral_code_id, project_notes, privacy_consent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$client_id, $service_type, $technology, $material, $quantity_kg, $referral_code_id, htmlspecialchars($project_notes, ENT_QUOTES, 'UTF-8'), $privacy_consent ? 1 : 0]);
-    $quote_id = $pdo->lastInsertId();
+    if (!$clientId) {
+        $stmt = $pdo->prepare('INSERT INTO clients (name, email) VALUES (:name, :email)');
+        $stmt->execute(['name' => $clientName, 'email' => $clientEmail]);
+        $clientId = (int) $pdo->lastInsertId();
+    }
 
-    // Storage sicuro degli allegati
-    $upload_dir = __DIR__ . '/uploads/';
-    if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+    $referralId = null;
+    if ($referralCode !== '') {
+        $stmt = $pdo->prepare('SELECT id FROM referral_codes WHERE code_value = :code AND is_active = 1 LIMIT 1');
+        $stmt->execute(['code' => $referralCode]);
+        $referralId = $stmt->fetchColumn();
+    }
 
-    $saved_attachments = [];
-    foreach ($uploaded_files as $f) {
-        $unique_name = generateUUIDv4() . '.' . $f['ext'];
-        $dest = $upload_dir . $unique_name;
+    $stmt = $pdo->prepare('INSERT INTO quotes (client_id, service_type, preferred_technology, preferred_material, gived_material, quantity_plastic, referral_code_id, project_notes, privacy_consent) VALUES (:client_id, :service_type, :preferred_technology, :preferred_material, :gived_material, :quantity_plastic, :referral_code_id, :project_notes, :privacy_consent)');
+    $stmt->execute([
+        'client_id' => $clientId,
+        'service_type' => $serviceType,
+        'preferred_technology' => $serviceType !== 'give_plastic' ? $preferredTechnology : null,
+        'preferred_material' => $serviceType !== 'give_plastic' ? $preferredMaterial : null,
+        'gived_material' => $serviceType === 'give_plastic' ? $givedMaterial : null,
+        'quantity_plastic' => $serviceType === 'give_plastic' ? $quantityPlastic : null,
+        'referral_code_id' => $referralId,
+        'project_notes' => $projectNotes,
+        'privacy_consent' => 1,
+    ]);
+    $quoteId = (int) $pdo->lastInsertId();
 
-        if (move_uploaded_file($f['tmp'], $dest)) {
-            $stmt = $pdo->prepare("INSERT INTO uploaded_files (quote_id, original_name, stored_name, file_path, file_size) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$quote_id, $f['orig'], $unique_name, $dest, $f['size']]);
-            $saved_attachments[] = ['path' => $dest, 'name' => $f['orig']];
-        } else {
-            throw new Exception("Errore di scrittura sul disco del server.");
+    $uploadedFiles = [];
+    if (!empty($_FILES['project_files']['name'][0])) {
+        foreach ($_FILES['project_files']['tmp_name'] as $index => $tmpName) {
+            if ($_FILES['project_files']['error'][$index] !== UPLOAD_ERR_OK) {
+                continue;
+            }
+
+            $originalName = $_FILES['project_files']['name'][$index];
+            $fileSize = (int) $_FILES['project_files']['size'][$index];
+            $mimeType = $_FILES['project_files']['type'][$index] ?: 'application/octet-stream';
+            $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+            if (!in_array($extension, $allowedExtensions, true) || !in_array($mimeType, $allowedMimeTypes, true)) {
+                throw new Exception('Sono ammessi solo file immagine (.png, .jpg, .jpeg).');
+            }
+            if ($fileSize > $maxFileSize) {
+                throw new Exception('Il file supera i 35 MB massimi consentiti.');
+            }
+
+            $storedName = generateUuid() . '.' . $extension;
+            $targetPath = UPLOAD_DIR . $storedName;
+            if (!move_uploaded_file($tmpName, $targetPath)) {
+                throw new Exception('Impossibile salvare il file caricato.');
+            }
+
+            $stmt = $pdo->prepare('INSERT INTO uploaded_files (quote_id, original_name_encrypted, uuid_name, file_path, mime_type, file_size) VALUES (:quote_id, :original_name_encrypted, :uuid_name, :file_path, :mime_type, :file_size)');
+            $stmt->execute([
+                'quote_id' => $quoteId,
+                'original_name_encrypted' => encryptFileName($originalName),
+                'uuid_name' => $storedName,
+                'file_path' => $targetPath,
+                'mime_type' => $mimeType,
+                'file_size' => $fileSize,
+            ]);
+
+            $uploadedFiles[] = ['path' => $targetPath, 'name' => $originalName];
         }
     }
 
     $pdo->commit();
 
-    // Invio Notifica Email (Sfrutta lo switch automatico definito in config.php)
-    try {
-        $mail = new PHPMailer(true);
-        $mail->isSMTP();
-        $mail->Host       = SMTP_HOST;
-        $mail->SMTPAuth   = true;
-        $mail->Username   = SMTP_USER;
-        $mail->Password   = SMTP_PASS;
-        $mail->Port       = SMTP_PORT;
-        $mail->CharSet    = 'UTF-8';
-        if (!IS_LOCAL) $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+    $mail = new PHPMailer(true);
+    $mail->isSMTP();
+    $mail->Host = MAIL_HOST;
+    $mail->SMTPAuth = true;
+    $mail->Username = MAIL_USERNAME;
+    $mail->Password = MAIL_PASSWORD;
+    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port = 587;
+    $mail->CharSet = 'UTF-8';
 
-        $mail->setFrom(SMTP_USER, 'PrimeFactory Automation');
-        $mail->addAddress(ADMIN_EMAIL);
-        $mail->isHTML(true);
-        $mail->Subject = "Nuovo Preventivo Ricevuto ##{$quote_id}";
-        $mail->Body    = "<h3>Nuova richiesta da {$client_name} (ID Preventivo: #{$quote_id})</h3><p>Controllare il pannello o il database per i dettagli.</p>";
-        
-        foreach ($saved_attachments as $sa) {
-            if (file_exists($sa['path'])) $mail->addAttachment($sa['path'], $sa['name']);
+    try {
+        $mail->setFrom(MAIL_FROM, 'PrimeFactory Preventivi');
+        $mail->addAddress(MAIL_TO);
+        $mail->addReplyTo($clientEmail, $clientName);
+        foreach ($uploadedFiles as $file) {
+            $mail->addAttachment($file['path'], $file['name']);
         }
+        $mail->isHTML(true);
+        $mail->Subject = 'Nuova richiesta preventivo #' . $quoteId . ' da ' . $clientName;
+        $mail->Body = '<h2>Nuova richiesta preventivo</h2><p><strong>Cliente:</strong> ' . htmlspecialchars($clientName) . '</p><p><strong>Email:</strong> ' . htmlspecialchars($clientEmail) . '</p><p><strong>Servizio:</strong> ' . htmlspecialchars($serviceType) . '</p><p><strong>Note:</strong> ' . nl2br(htmlspecialchars($projectNotes)) . '</p>';
         $mail->send();
     } catch (Exception $e) {
-        // In locale, se non hai configurato Mailtrap, non bloccare l'esperienza utente a schermo
-        if (!IS_LOCAL) throw $e;
+        error_log('[Mail Admin] ' . $e->getMessage());
     }
 
-    echo json_encode(['success' => true, 'message' => "La tua richiesta di preventivo #{$quote_id} è stata elaborata con successo!"]);
+    try {
+        $mail->clearAddresses();
+        $mail->clearAttachments();
+        $mail->clearReplyTos();
+        $mail->addAddress($clientEmail, $clientName);
+        $mail->Subject = 'Ricevuta richiesta preventivo PrimeFactory #' . $quoteId;
+        $mail->Body = '<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;color:#1e1e1e;"><h2 style="color:#3c1a47;">Ciao ' . htmlspecialchars($clientName) . '!</h2><p>Abbiamo ricevuto la tua richiesta. Il team di PrimeFactory la valuterà entro 24 ore.</p><p><strong>Paco</strong> ti assicura che il processo sarà semplice e trasparente.</p><p>Hai allegato ' . count($uploadedFiles) . ' file immagine/i.</p><p style="font-size:12px;color:#666;">I tuoi dati sono trattati in accordo al GDPR e i file sono protetti con identificazione UUID.</p></div>';
+        $mail->send();
+    } catch (Exception $e) {
+        error_log('[Mail Client] ' . $e->getMessage());
+    }
 
-} catch (Exception $e) {
-    if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log("Errore Form Handler: " . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => "Errore di elaborazione server: " . $e->getMessage()]);
+    echo json_encode(['success' => true, 'message' => 'Richiesta inviata con successo. Riceverai una conferma via email entro pochi minuti.']);
+} catch (Throwable $e) {
+    if (isset($pdo) && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    error_log('[Form Handler] ' . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Si è verificato un errore durante l’elaborazione: ' . $e->getMessage()]);
 }

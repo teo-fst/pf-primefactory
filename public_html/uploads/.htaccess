@@ -1,8 +1,12 @@
-Options -ExecCGI -Indexes
-RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phps
-RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phps
+# Blocca l'esecuzione di script PHP e altri linguaggi all'interno della cartella upload
 
-<FilesMatch "\.(php|phtml|php3|php4|php5|php7|php8|phps|pl|py|sh|cgi|asp|aspx)$">
+<FilesMatch "\.(php|phtml|php3|pl|py|cgi|exe|scr)$">
     Order Allow,Deny
     Deny from all
 </FilesMatch>
+
+# Disabilita l'interprete PHP nella cartella upload
+
+RemoveHandler .php .phtml .php3
+RemoveType .php .phtml .php3
+php_flag engine off
