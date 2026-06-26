@@ -14,7 +14,9 @@ Sito vetrina e modulo preventivi per progetto PrimeFactory.
 
 1. Assicurati che Docker sia avviato.
 2. Esegui `docker compose up --build` dalla root del progetto.
-3. Apri `http://localhost:8080`.
+3. Apri `https://localhost:8080`.
+
+> Nota: il certificato SSL locale è autofirmato. Il browser potrebbe chiedere di accettare il rischio per continuare.
 
 ## Note
 

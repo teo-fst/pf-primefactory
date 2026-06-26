@@ -4,4 +4,4 @@
 .DS_Store
 .env
 .github/workflows/*
-*/*.bak
+/public_html/backup/*
