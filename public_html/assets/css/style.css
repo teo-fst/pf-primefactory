@@ -37,3 +37,7 @@ img {
     max-width: 100%;
     height: auto;
 }
+
+hero-shadow{
+    text-shadow: var(--text-shadow-lg);
+}
