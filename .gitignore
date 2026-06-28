@@ -2,6 +2,6 @@
 !/public_html/uploads/.htaccess
 /public_html/vendor/
 .DS_Store
-.env
+!.env
 .github/workflows/*
 /public_html/backup/*
