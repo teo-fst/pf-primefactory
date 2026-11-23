@@ -264,6 +264,9 @@ test.describe("area clienti (con database)", () => {
     expect(before).toBe(1);
     const { data: objectsBefore } = await admin.storage.from("request-files").list(requestA.id);
     expect(objectsBefore!.length).toBe(1);
+    // Gli eventi di notifica (outbox) generati da richiesta, file e messaggio ci sono...
+    const { count: outboxBefore } = await admin.from("notification_outbox").select("*", { count: "exact", head: true }).eq("request_id", requestA.id);
+    expect(outboxBefore).toBeGreaterThan(0);
 
     await button.click();
     await expect(page).toHaveURL(/\/it\/account-eliminato$/, { timeout: 30_000 });
@@ -277,6 +280,8 @@ test.describe("area clienti (con database)", () => {
       admin.from("request_files").select("*", { count: "exact", head: true }).eq("request_id", requestA.id),
       admin.from("request_messages").select("*", { count: "exact", head: true }).eq("request_id", requestA.id),
       admin.from("request_status_history").select("*", { count: "exact", head: true }).eq("request_id", requestA.id),
+      // ...e la cascata su requests le elimina insieme al resto (nessun evento orfano)
+      admin.from("notification_outbox").select("*", { count: "exact", head: true }).eq("request_id", requestA.id),
     ]);
     for (const c of checks) expect(c.count).toBe(0);
     const { data: objectsAfter } = await admin.storage.from("request-files").list(requestA.id);
