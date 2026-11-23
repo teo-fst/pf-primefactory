@@ -127,3 +127,24 @@ La cartella `supabase/` contiene `config.toml`. Le migrazioni SQL versionate van
   `next.config.ts` sono disattivati. Va riprovato quando OpenNext li supportera.
 - Il proxy (`src/proxy.ts`, il vecchio middleware) gira su Node: OpenNext avvisa che
   questo supporto e sperimentale. Con `wrangler dev` `/it` e `/en` rispondono 200.
+
+## Lavorare su più copie in parallelo (worktree)
+
+Se apri una seconda copia del progetto con `git worktree`, evita conflitti così:
+
+```bash
+# nella cartella del worktree
+export PF_PORT=3001                                         # porta diversa da 3000
+export PF_ENV_FILE=/c/Users/<utente>/pf-primefactory/.env.local  # usa il file env del repo principale
+docker compose -p pf-wt1 up -d                              # nome progetto Docker diverso
+```
+
+## Caricare testi e documenti legali nel database
+
+I testi del sito (`content/site-texts.json`) e le bozze legali (`content/legal/`) si caricano in Supabase con:
+
+```bash
+docker compose run --rm --no-deps app node scripts/seed-content.mjs
+```
+
+Lo script è idempotente: non sovrascrive i testi già modificati dal pannello admin.
