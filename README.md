@@ -355,7 +355,7 @@ Ogni azione è autorizzata due volte:
 Gli **operatori** non entrano nel pannello: le tabelle sono accessibili solo agli admin (Q12 prevede per loro una
 vista senza prezzi né dati cliente, da fare in una fase successiva).
 
-### Migrazione del blocco (`20261123130000_admin_stato_con_nota.sql`)
+### Migrazione del blocco (`20261123031002_admin_stato_con_nota.sql`)
 
 - `change_request_status(p_request_id, p_status, p_note)`: cambia lo stato e scrive la nota sulla riga di storico creata
   dal trigger esistente (variabile locale alla transazione `pf.status_note` + trigger BEFORE INSERT). È `security invoker`:
@@ -591,3 +591,7 @@ L'e2e crea gli utenti `pf-test+area@example.invalid` e `pf-test+area-b@example.i
 (il servizio `e2e` legge lo stesso file env dell'app), li elimina in `afterAll` anche se un test fallisce e
 verifica che in DB e Storage non resti nulla. Non lanciarlo insieme ad altri e2e che puliscono `pf-test+%`
 (vedi `solitaria.md`, voce 18).
+
+## Migrazioni del database: regola sui nomi dei file
+
+Ogni file in `supabase/migrations/` si chiama `<versione>_<nome>.sql`, dove `<versione>` è **quella registrata dal database**, non un orario scelto a mano. Quando una migrazione viene applicata con lo strumento MCP `apply_migration`, la versione la decide Supabase: leggila subito dopo con `list_migrations` e rinomina il file di conseguenza. Se i nomi non coincidono, `supabase db push` proverebbe a riapplicare migrazioni già presenti.

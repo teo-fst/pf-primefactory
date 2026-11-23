@@ -133,7 +133,7 @@ Per ogni voce: problema, causa, soluzione, verifica. Le voci più recenti stanno
 ## 22. Cancellare una foto dal portfolio lasciava il file nello Storage (2026-11-23)
 - **Problema:** «Elimina» rimuoveva la riga ma l'oggetto restava nel bucket `portfolio`, senza alcun errore.
 - **Causa:** l'API di Storage cancella con `DELETE ... RETURNING` e per vedere la riga serve anche una policy SELECT; per il bucket `portfolio` c'erano solo insert/update/delete per gli admin.
-- **Soluzione:** migrazione additiva `20261123140000_portfolio_admin_select.sql` (SELECT solo admin; la lettura pubblica delle foto non passa dalle policy).
+- **Soluzione:** migrazione additiva `20261123073509_portfolio_admin_select.sql` (SELECT solo admin; la lettura pubblica delle foto non passa dalle policy).
 - **Verifica:** e2e «portfolio» (l'oggetto non c'è più nel bucket dopo l'eliminazione); `rls_smoke.sql` T54 (l'admin vede gli oggetti) e T55 (il cliente no).
 
 ## 23. Caricamento foto muto da un indirizzo http interno (2026-11-23)
@@ -153,3 +153,9 @@ Per ogni voce: problema, causa, soluzione, verifica. Le voci più recenti stanno
 - **Causa:** (a) Next inserisce un suo `role="alert"` (route announcer) in ogni pagina; (b) con il volume montato dall'host il server di sviluppo a volte non ricompila al volo.
 - **Soluzione:** (a) gli esiti si cercano dentro il modulo (`form.getByRole(...)`); (b) dopo modifiche al codice si riavvia il servizio (`docker compose -p pf-admin restart app`) prima degli e2e.
 - **Verifica:** e2e del pannello verdi dopo il riavvio; nota nel README.
+
+## 26. File di migrazione con versione diversa da quella applicata (2026-11-23)
+- **Problema:** tre file in `supabase/migrations/` avevano un timestamp diverso dalla versione registrata nel database (`20261123032500`, `20261123130000`, `20261123140000`).
+- **Causa:** `apply_migration` (MCP) assegna la versione al momento dell'applicazione; i file erano stati nominati con un timestamp scelto a mano.
+- **Soluzione:** file rinominati alle versioni reali (`20261123032146`, `20261123031002`, `20261123073509`), riferimenti aggiornati in README e solitaria. Regola: dopo `apply_migration`, leggere la versione con `list_migrations` e usare quella nel nome del file.
+- **Verifica:** i 10 file corrispondono uno a uno alle 10 versioni restituite da `list_migrations`; con la CLI `supabase db push` nessuna migrazione risulterebbe da riapplicare.
