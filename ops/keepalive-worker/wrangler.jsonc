@@ -1,0 +1,11 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "pf-keepalive",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  // Ogni 3 giorni alle 06:00 UTC (giorni 1, 4, 7... del mese)
+  "triggers": { "crons": ["0 6 */3 * *"] },
+  "observability": { "enabled": true }
+  // Variabili da impostare con `wrangler secret put` (mai nel codice):
+  //   SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY
+}
