@@ -1,0 +1,36 @@
+{
+  "Site": {
+    "skipLink": "Vai al contenuto",
+    "brand": "Primefactory",
+    "homeLabel": "Primefactory, pagina iniziale",
+    "mainNav": "Navigazione principale",
+    "utilityNav": "Accesso e lingua",
+    "clientArea": "Area clienti",
+    "language": "Lingua",
+    "languageNames": { "it": "Italiano", "en": "English" },
+    "legalNav": "Informazioni legali",
+    "discover": "Scopri la linea",
+    "viewAllEvents": "Tutti gli eventi",
+    "viewPortfolio": "Vai al portfolio",
+    "infoOnly": "Questa linea è solo informativa: al momento non si inviano richieste.",
+    "allLines": "Tutte le linee",
+    "filterByLine": "Filtra per linea",
+    "noPhotos": "Nessuna foto pubblicata per questa linea.",
+    "linePhotos": "Dal portfolio",
+    "location": "Dove",
+    "eventKinds": {
+      "trackday": "Trackday",
+      "motoraduno": "Motoraduno",
+      "fiera": "Fiera",
+      "altro": "Evento"
+    },
+    "notFoundTitle": "Pagina non trovata",
+    "notFoundBody": "La pagina che cerchi non esiste o non è ancora pubblicata.",
+    "backHome": "Torna alla pagina iniziale",
+    "legalBack": "Documenti legali",
+    "version": "Versione",
+    "metaHomeTitle": "Primefactory | Stampa 3D, accessori per moto, gioielleria",
+    "metaPortfolio": "Portfolio",
+    "organizationDescription": "Modellazione e stampa 3D, accessori per moto e gioielleria su commissione in provincia di Imperia."
+  }
+}
