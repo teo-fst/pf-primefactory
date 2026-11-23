@@ -74,8 +74,10 @@ anteponi `MSYS_NO_PATHCONV=1`.
 ├── src/
 │   ├── app/[locale]/      pagine; [locale] e "it" o "en"
 │   ├── components/ui/     componenti shadcn/ui
+│   ├── components/site/   header, footer, selettore lingua, griglie del sito pubblico
 │   ├── i18n/              configurazione next-intl (lingue, routing, messaggi)
-│   ├── lib/supabase/      client Supabase: browser, server, refresh sessione
+│   ├── lib/content/       strato dati del sito pubblico (solo server) e cache Redis
+│   ├── lib/supabase/      client Supabase: browser, server, refresh sessione, tipi generati
 │   └── proxy.ts           unisce next-intl e sessione Supabase
 ├── messages/              testi tradotti: it.json, en.json
 ├── e2e/                   test Playwright
@@ -107,6 +109,31 @@ e crea `messages/fr.json` con le stesse chiavi di `it.json`.
 - **Cloudflare Workers (produzione)**: variabili e segreti del Worker
   `pf-primefactory` dal pannello Cloudflare o con `wrangler secret put`.
 
+## Sito pubblico: contenuti, cache e SEO
+
+- I testi, le linee, le pagine, il portfolio, gli eventi e i documenti legali si leggono
+  da Supabase con la chiave pubblicabile (la protezione e la RLS). Il codice e in
+  `src/lib/content/` e gira solo sul server.
+- `getSiteTexts(lingua)` ricade sull'italiano e poi su `content/site-texts.json` se il
+  database non risponde.
+- Cache con Upstash Redis (Q17): 300 secondi, attiva solo se ci sono
+  `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`; se Redis non risponde la pagina
+  si carica comunque. `invalidateCache(prefisso)` svuota le chiavi dopo una modifica
+  dal pannello. Le pagine sono `force-dynamic` (Cache Components non e usabile con OpenNext).
+- `NEXT_PUBLIC_SITE_URL` e l'indirizzo pubblico (canonical, hreflang, sitemap). Se manca
+  si usa `http://localhost:3000`. In produzione va definita come variabile **di build**
+  (e letta a ogni build di `opennextjs-cloudflare`); `UPSTASH_*` sono segreti **runtime**
+  del Worker (`wrangler secret put`).
+- Per provare il Worker in locale, in container: crea un file `.dev.vars` (e nel
+  `.gitignore`) con le variabili `UPSTASH_*`, poi
+  `docker compose run --rm -p 8788:8788 app npx opennextjs-cloudflare build` e
+  `docker compose run --rm -p 8788:8788 app npx wrangler dev --ip 0.0.0.0 --port 8788`.
+- Le foto del portfolio sono tag `<img>` e non `next/image`: l'ottimizzazione immagini di
+  Next richiederebbe su Cloudflare un binding Images non configurato.
+- I testi dell'interfaccia del sito (menu, pulsanti, avvisi) stanno in
+  `messages/site.it.json` e `messages/site.en.json`, uniti a `it.json`/`en.json` in
+  `src/i18n/request.ts`.
+
 ## Database Supabase
 
 La cartella `supabase/` contiene `config.toml`. Le migrazioni SQL versionate vanno in
@@ -127,6 +154,12 @@ La cartella `supabase/` contiene `config.toml`. Le migrazioni SQL versionate van
   `next.config.ts` sono disattivati. Va riprovato quando OpenNext li supportera.
 - Il proxy (`src/proxy.ts`, il vecchio middleware) gira su Node: OpenNext avvisa che
   questo supporto e sperimentale. Con `wrangler dev` `/it` e `/en` rispondono 200.
+- Il `matcher` di `src/proxy.ts` e scritto come stringa JS con `\.` (che diventa `.`):
+  di fatto il proxy gira solo su `/`. Correggerlo in `\\.` farebbe passare anche `/it/...`
+  e `/auth/...` da next-intl: da fare insieme alla parte di autenticazione.
+- Con la radice dinamica `[locale]`, nel server di sviluppo (`next dev`) la pagina 404
+  resta bianca; in produzione (`next start`, Workers) mostra header e footer. Lo status
+  e sempre 404.
 
 ## Lavorare su più copie in parallelo (worktree)
 

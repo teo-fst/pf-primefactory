@@ -1,0 +1,17 @@
+# Regole predefinite di gitleaks più un'eccezione mirata.
+title = "Primefactory"
+
+[extend]
+useDefault = true
+
+# Falso positivo noto: la chiave "publishable" di Supabase del progetto è pubblica
+# (finisce nel browser ed è protetta da Row Level Security). Serve al workflow CI.
+# L'eccezione confronta il SEGRETO trovato con il valore esatto di questa chiave:
+# qualsiasi altro valore, comprese le chiavi sb_secret_ in qualunque file, resta segnalato.
+# Una versione precedente (condizione AND su percorso ci.yml + prefisso) nascondeva anche
+# le chiavi segrete scritte in ci.yml: verificato con gitleaks v8.30.1, quindi sostituita.
+# Se la chiave publishable viene ruotata, aggiorna il valore qui sotto.
+[[allowlists]]
+description = "Chiave publishable Supabase del progetto (pubblica)"
+regexTarget = "secret"
+regexes = ['''^sb_publishable_gE6ADWiZWeFaECattpC2pg_9q_idzVC$''']

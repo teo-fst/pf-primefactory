@@ -1,0 +1,36 @@
+{
+  "Site": {
+    "skipLink": "Skip to content",
+    "brand": "Primefactory",
+    "homeLabel": "Primefactory, home page",
+    "mainNav": "Main navigation",
+    "utilityNav": "Sign-in and language",
+    "clientArea": "Client area",
+    "language": "Language",
+    "languageNames": { "it": "Italiano", "en": "English" },
+    "legalNav": "Legal information",
+    "discover": "See this line",
+    "viewAllEvents": "All events",
+    "viewPortfolio": "Go to the portfolio",
+    "infoOnly": "This line is for information only: requests are not accepted at the moment.",
+    "allLines": "All lines",
+    "filterByLine": "Filter by line",
+    "noPhotos": "No photos published for this line.",
+    "linePhotos": "From the portfolio",
+    "location": "Where",
+    "eventKinds": {
+      "trackday": "Trackday",
+      "motoraduno": "Motorcycle rally",
+      "fiera": "Trade fair",
+      "altro": "Event"
+    },
+    "notFoundTitle": "Page not found",
+    "notFoundBody": "The page you are looking for does not exist or is not published yet.",
+    "backHome": "Back to the home page",
+    "legalBack": "Legal documents",
+    "version": "Version",
+    "metaHomeTitle": "Primefactory | 3D printing, motorcycle accessories, jewellery",
+    "metaPortfolio": "Portfolio",
+    "organizationDescription": "3D modelling and printing, motorcycle accessories and made-to-order jewellery in the province of Imperia."
+  }
+}
