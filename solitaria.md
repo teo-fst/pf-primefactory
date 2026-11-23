@@ -87,3 +87,9 @@ Per ogni voce: problema, causa, soluzione, verifica. Le voci più recenti stanno
 - **Causa:** il prelievo non filtra per richiesta: il database di sviluppo è unico e condiviso.
 - **Soluzione:** l'integrazione usa il prelievo vero solo se non ci sono eventi altrui in coda; altrimenti prende direttamente le righe della propria richiesta. Per le prove a mano con chiavi finte si lancia il server con un database dedicato o a coda vuota.
 - **Verifica:** integrazione 5/5 (1 saltato: invio reale non richiesto); prova dell'invio immediato con Resend finto: gli eventi risultano ritentati (`attempts = 1`, `last_error = resend_401`).
+
+## 15. Gitleaks segnala segreti finti nei test (2026-11-23)
+- **Problema:** gitleaks v8.30.1 segnalava `generic-api-key` su due costanti dei test del bearer (variabili chiamate `SECRET`/`secret` con una stringa lunga e varia).
+- **Causa:** il nome della variabile (`secret`) più un valore ad alta entropia soddisfano la regola generica; erano valori inventati, non segreti.
+- **Soluzione:** valori di prova a bassa entropia (`prova-prova-prova-prova`), nessuna eccezione in `.gitleaks.toml`. I commit locali non ancora pubblicati sono stati rifatti, così nemmeno la storia contiene più i valori.
+- **Verifica:** `gitleaks git` (storia completa, 57 commit) e `gitleaks dir` sui file tracciati con v8.30.1 e `.gitleaks.toml`: nessuna fuga; i test del bearer passano ancora (rifiutano segreto sbagliato, di un carattere in più o in meno e maiuscolo).
