@@ -57,8 +57,11 @@ async function purgeCache() {
 }
 
 async function cleanup() {
+  // SOLO i due indirizzi esatti di questo test: altri blocchi usano altri utenti `pf-test+...` nello stesso
+  // database e non vanno toccati (né qui né nelle verifiche).
+  const mine = new Set([ADMIN_EMAIL, CUSTOMER_EMAIL]);
   const { data: list } = await api.auth.admin.listUsers({ perPage: 1000 });
-  const ids = (list?.users ?? []).filter((u) => u.email?.startsWith("pf-test+")).map((u) => u.id);
+  const ids = (list?.users ?? []).filter((u) => u.email !== undefined && mine.has(u.email)).map((u) => u.id);
   if (ids.length > 0) {
     const { data: requests } = await api.from("requests").select("id").in("customer_id", ids);
     for (const r of requests ?? []) await removeStorageFolder("request-files", r.id);
@@ -72,7 +75,7 @@ async function cleanup() {
 
     for (const id of ids) await api.auth.admin.deleteUser(id);
   }
-  await api.from("events").delete().like("source_code", "pf-test-%");
+  await api.from("events").delete().like("source_code", "pf-test-evento-%");
 
   // Testi: ripristina i valori originali della chiave usata dai test.
   await api.from("site_texts").delete().eq("key", TEXT_KEY);
