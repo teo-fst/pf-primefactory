@@ -1,59 +1,53 @@
 "use client";
 
-import { useActionState, useEffect, useRef, type ReactNode } from "react";
-import { useFormStatus } from "react-dom";
+import { createContext, startTransition, useActionState, useContext, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { IDLE_STATE, type ActionState } from "@/lib/admin/action-state";
 import { cn } from "@/lib/utils";
 
 export type AdminAction = (previous: ActionState, formData: FormData) => Promise<ActionState>;
 
-/** Rimette nei campi i valori inviati: React svuota il modulo dopo ogni invio, ma dopo un errore l'admin deve ritrovare quello che aveva scritto. */
-function restoreFormValues(form: HTMLFormElement, data: FormData) {
-  for (const element of Array.from(form.elements)) {
-    if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement)) continue;
-    if (!element.name || element.type === "file" || element.type === "hidden" || element.type === "submit") continue;
-    if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) {
-      const values = data.getAll(element.name).map(String);
-      element.checked = values.includes(element.value);
-    } else {
-      const value = data.get(element.name);
-      if (typeof value === "string") element.value = value;
-    }
-  }
-}
+const PendingContext = createContext(false);
 
 /**
  * Modulo collegato a una Server Action. Mostra l'esito (verde = fatto, rosso = errore) sotto i campi.
- * Funziona anche prima che la pagina sia "idratata" (invio classico del modulo).
+ *
+ * L'invio è gestito a mano (preventDefault + startTransition) invece che con `action={...}`: React, dopo
+ * un modulo con `action`, rimette tutti i campi al valore iniziale. Nei menu a tendina questo faceva
+ * tornare il vecchio valore dopo un salvataggio riuscito, e dopo un errore faceva perdere all'admin
+ * quello che aveva scritto. Così i campi restano com'erano; con `resetOnSuccess` si svuotano solo
+ * dopo un invio riuscito (utile per i messaggi).
  */
 export function ActionForm({
   action,
   children,
   className,
   testId,
+  resetOnSuccess = false,
 }: {
   action: AdminAction;
   children: ReactNode;
   className?: string;
   testId?: string;
+  resetOnSuccess?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
-  const lastData = useRef<FormData | null>(null);
-  const [state, formAction] = useActionState<ActionState, FormData>(async (previous, data) => {
-    lastData.current = data;
-    return action(previous, data);
-  }, IDLE_STATE);
+  const [state, dispatch, pending] = useActionState<ActionState, FormData>(action, IDLE_STATE);
 
   useEffect(() => {
-    if (state.status === "error" && formRef.current && lastData.current) {
-      restoreFormValues(formRef.current, lastData.current);
-    }
-  }, [state]);
+    if (resetOnSuccess && state.status === "ok") formRef.current?.reset();
+  }, [state, resetOnSuccess]);
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const data = new FormData(event.currentTarget, submitter);
+    startTransition(() => dispatch(data));
+  }
 
   return (
-    <form ref={formRef} action={formAction} className={className} data-testid={testId}>
-      {children}
+    <form ref={formRef} onSubmit={onSubmit} className={className} data-testid={testId} aria-busy={pending}>
+      <PendingContext.Provider value={pending}>{children}</PendingContext.Provider>
       {state.status !== "idle" ? (
         <p
           role={state.status === "error" ? "alert" : "status"}
@@ -79,6 +73,7 @@ export function SubmitButton({
   name,
   value,
   className,
+  disabled,
 }: {
   children: ReactNode;
   confirm?: string;
@@ -86,15 +81,16 @@ export function SubmitButton({
   name?: string;
   value?: string;
   className?: string;
+  disabled?: boolean;
 }) {
-  const { pending } = useFormStatus();
+  const pending = useContext(PendingContext);
   return (
     <Button
       type="submit"
       variant={variant}
       name={name}
       value={value}
-      disabled={pending}
+      disabled={pending || disabled}
       className={cn("min-h-9", className)}
       onClick={(event) => {
         if (confirm && !window.confirm(confirm)) event.preventDefault();
