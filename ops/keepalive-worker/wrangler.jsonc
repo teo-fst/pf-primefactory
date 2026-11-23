@@ -3,9 +3,19 @@
   "name": "pf-keepalive",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-01",
-  // Ogni 3 giorni alle 06:00 UTC (giorni 1, 4, 7... del mese)
-  "triggers": { "crons": ["0 6 */3 * *"] },
+  "triggers": {
+    "crons": [
+      // Ogni 3 giorni alle 06:00 UTC (giorni 1, 4, 7... del mese): ping a Supabase
+      "0 6 */3 * *",
+      // Ogni 5 minuti: notifiche (POST /api/cron/notifiche). Deve coincidere con NOTIFY_CRON in src/index.ts
+      "*/5 * * * *"
+    ]
+  },
   "observability": { "enabled": true }
   // Variabili da impostare con `wrangler secret put` (mai nel codice):
-  //   SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY
+  //   SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, NOTIFY_URL, CRON_SECRET
+  // Se la chiamata diretta a NOTIFY_URL non funziona (due Worker sullo stesso account/zona), usa un service
+  // binding al posto di NOTIFY_URL, aggiungendo qui:
+  //   "services": [{ "binding": "WEB", "service": "pf-primefactory" }]
+  // Il Worker del sito deve esistere già al momento del deploy di questo.
 }
