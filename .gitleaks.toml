@@ -1,0 +1,16 @@
+# Regole predefinite di gitleaks piu una eccezione mirata.
+title = "Primefactory"
+
+[extend]
+useDefault = true
+
+# Falso positivo noto: la chiave "publishable" di Supabase e pubblica per progetto
+# (finisce nel browser ed e protetta da Row Level Security). Nel workflow CI serve
+# per far compilare l'app. L'eccezione vale SOLO per questo file e SOLO per chiavi
+# che iniziano con "sb_publishable_": una chiave segreta (sb_secret_...) o la stessa
+# stringa in un altro file continua a essere segnalata.
+[[allowlists]]
+description = "Chiave publishable Supabase (pubblica) nel workflow CI"
+condition = "AND"
+paths = ['''(^|/)\.github/workflows/ci\.yml$''']
+regexes = ['''sb_publishable_[A-Za-z0-9_-]{20,}''']
