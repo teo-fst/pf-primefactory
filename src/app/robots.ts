@@ -7,7 +7,7 @@ export default function robots(): MetadataRoute.Robots {
   const disallow = [
     "/api/",
     "/auth/",
-    ...routing.locales.flatMap((locale) => [`/${locale}/accedi`, `/${locale}/area-clienti`]),
+    ...routing.locales.flatMap((locale) => [`/${locale}/accedi`, `/${locale}/area-clienti`, `/${locale}/admin`]),
   ];
   return {
     rules: [{ userAgent: "*", allow: "/", disallow }],

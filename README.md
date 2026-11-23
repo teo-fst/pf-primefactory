@@ -325,6 +325,74 @@ ripulisce: vedi la sezione Notifiche): gli invii di prova reali si fanno a mano 
 - `next.config.ts`: `allowedDevOrigins: ["pf-web"]` serve ai test Playwright nel container (senza, Next blocca
   gli script di sviluppo e la pagina non si idrata); `experimental.authInterrupts` abilita `forbidden()`.
 
+## Pannello admin (F1.9)
+
+Indirizzo: `/it/admin` (anche `/en/admin`; i testi del pannello sono solo in italiano, in `messages/admin.it.json`).
+Senza accesso porta a `/accedi`; con un account che non è admin risponde 403. Per diventare admin vedi
+"Primo admin" sopra; gli altri admin si invitano dal pannello stesso (pagina Utenti).
+
+| Sezione | Percorso | Cosa fa |
+|---------|----------|---------|
+| Dashboard | `/admin` | richieste per stato, ultime 10, file ancora da copiare sul server interno (`synced_at` vuoto) |
+| Richieste | `/admin/richieste` | filtri (stato, linea, tipo, fonte, testo), dettaglio `/admin/richieste/<id>` con dati cliente, campi della linea, storico, file (download con URL firmato di 60 s), messaggi e note interne, cambio stato con nota |
+| Portfolio | `/admin/portfolio` | carica foto (jpeg/png/webp/avif, 10 MB), linea, didascalie IT/EN, ordine, «diritti ceduti» obbligatorio per pubblicare, elimina |
+| Eventi | `/admin/eventi` | crea/modifica, codice fonte dal titolo (modificabile), QR scaricabile (SVG e PNG) verso `/<lingua>/lista-interesse?fonte=<codice>` |
+| Contenuti | `/admin/contenuti/...` | testi IT/EN affiancati con ricerca, visibilità di pagine e linee, `accepts_requests`, interruttore lista d'interesse/preventivi, editor della `form_schema` con validazione |
+| Utenti | `/admin/utenti` | elenco profili, invito di admin/operatori per email, cambio ruolo con conferma |
+| Notifiche | campanella nell'header, `/admin/notifiche` | non lette dell'utente corrente, segna come letta |
+
+### Doppia autorizzazione
+
+Ogni azione è autorizzata due volte:
+
+1. **Lato server**: `requireRole('admin')` nel layout e in ogni pagina; ogni Server Action e Route Handler
+   richiama `guardAdmin()` (`src/lib/admin/guard.ts`), che rilegge il ruolo dal database. Una Server Action è un
+   endpoint HTTP: non ci si fida del fatto che la pagina sia protetta.
+2. **Nel database**: le scritture usano il client con la sessione dell'admin, quindi decide la RLS (solo admin).
+   La chiave segreta si usa solo in `src/lib/admin/auth-admin.ts` (leggere l'email di un utente, invitare, cambiare
+   ruolo), dove la RLS lo impedirebbe per scelta.
+
+Gli **operatori** non entrano nel pannello: le tabelle sono accessibili solo agli admin (Q12 prevede per loro una
+vista senza prezzi né dati cliente, da fare in una fase successiva).
+
+### Migrazione del blocco (`20261123031002_admin_stato_con_nota.sql`)
+
+- `change_request_status(p_request_id, p_status, p_note)`: cambia lo stato e scrive la nota sulla riga di storico creata
+  dal trigger esistente (variabile locale alla transazione `pf.status_note` + trigger BEFORE INSERT). È `security invoker`:
+  la RLS rifiuta chi non è admin.
+- `profiles_protect_last_admin`: nessuno, nemmeno con la chiave segreta, può togliere il ruolo all'ultimo admin.
+
+### Cache dei contenuti
+
+Dopo ogni modifica di testi, linee, pagine, portfolio ed eventi le Server Action chiamano `invalidateCache(prefisso)`
+(`texts:`, `lines:`, `pages:`, `portfolio:`, `events:`): la modifica compare sul sito subito, non dopo 5 minuti.
+Non si svuota mai tutto il prefisso `pf:` perché su Upstash stanno anche i contatori anti-spam (`pf:rl:*`).
+
+### Inviti agli utenti: impostazione da fare nel pannello Supabase
+
+Authentication > Emails > Templates > **Invite user**: sostituisci `{{ .ConfirmationURL }}` con
+
+```
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&redirect_to={{ .RedirectTo }}
+```
+
+Come per il magic link, così il link si convalida sul server. `/auth/confirm` accetta anche `type=invite` e porta
+gli invitati con ruolo admin su `/admin`. Servono anche un SMTP personalizzato (vedi sopra) e il Redirect URL
+`https://<dominio>/**` già in elenco.
+
+### Test del pannello
+
+```bash
+docker compose run --rm app npx vitest run                                              # unitari (guardie, form_schema, codice fonte, utenti...)
+docker compose --profile e2e run --rm -e E2E_WITH_SUPABASE=1 e2e npx playwright test e2e/admin.spec.ts
+```
+
+I test e2e usano il database reale: creano `pf-test+admin@example.invalid` e `pf-test+cliente@example.invalid` con
+l'API admin, una richiesta con un file, eventi e una foto di prova, e in `afterAll` cancellano tutto (utenti,
+richieste, eventi, foto, oggetti Storage) e ripristinano il testo modificato. Il servizio `e2e` legge lo stesso
+file di variabili del servizio `app` (`PF_ENV_FILE`). Dopo una modifica ai file con il server di sviluppo già
+acceso, se i test non vedono la modifica riavvia il servizio (`docker compose restart app`).
+
 ## Notifiche (F1.10)
 
 Email al cliente (conferma, cambio stato, nuovo messaggio), email ai soci admin (nuova richiesta, file caricato,
@@ -523,3 +591,7 @@ L'e2e crea gli utenti `pf-test+area@example.invalid` e `pf-test+area-b@example.i
 (il servizio `e2e` legge lo stesso file env dell'app), li elimina in `afterAll` anche se un test fallisce e
 verifica che in DB e Storage non resti nulla. Non lanciarlo insieme ad altri e2e che puliscono `pf-test+%`
 (vedi `solitaria.md`, voce 18).
+
+## Migrazioni del database: regola sui nomi dei file
+
+Ogni file in `supabase/migrations/` si chiama `<versione>_<nome>.sql`, dove `<versione>` è **quella registrata dal database**, non un orario scelto a mano. Quando una migrazione viene applicata con lo strumento MCP `apply_migration`, la versione la decide Supabase: leggila subito dopo con `list_migrations` e rinomina il file di conseguenza. Se i nomi non coincidono, `supabase db push` proverebbe a riapplicare migrazioni già presenti.

@@ -123,3 +123,39 @@ Per ogni voce: problema, causa, soluzione, verifica. Le voci più recenti stanno
 - **Causa:** permesso di insert su tutte le colonne di `request_files` per il ruolo `authenticated`.
 - **Soluzione:** insert consentito solo su `request_id, storage_path, original_name, size_bytes, mime_type, uploaded_by` (stessa migrazione).
 - **Verifica:** T28 (registrazione normale riuscita) e T32 (insert con `synced_at` rifiutato) in `supabase/tests/rls_smoke.sql`.
+
+## 21. Nel pannello i campi tornavano al valore vecchio dopo il salvataggio (2026-11-23)
+- **Problema:** dopo «Salva stato» il menu a tendina tornava su «Richiesta ricevuta» e un secondo clic annullava il cambio; dopo un errore i testi scritti sparivano.
+- **Causa:** React 19, dopo un modulo con `action={...}`, richiama `form.reset()`. Per un `<select>` non controllato il valore iniziale non viene aggiornato (nemmeno con `key`), quindi il reset riporta il primo valore originale.
+- **Soluzione:** `ActionForm` (`src/components/admin/action-form.tsx`) gestisce l'invio a mano (`preventDefault` + `startTransition`) e non fa reset; `resetOnSuccess` svuota solo il modulo dei messaggi dopo un invio riuscito.
+- **Verifica:** e2e «cambio stato con nota»: il menu mostra lo stato appena salvato e un secondo invio dello stesso stato dà l'errore chiaro.
+
+## 22. Cancellare una foto dal portfolio lasciava il file nello Storage (2026-11-23)
+- **Problema:** «Elimina» rimuoveva la riga ma l'oggetto restava nel bucket `portfolio`, senza alcun errore.
+- **Causa:** l'API di Storage cancella con `DELETE ... RETURNING` e per vedere la riga serve anche una policy SELECT; per il bucket `portfolio` c'erano solo insert/update/delete per gli admin.
+- **Soluzione:** migrazione additiva `20261123073509_portfolio_admin_select.sql` (SELECT solo admin; la lettura pubblica delle foto non passa dalle policy).
+- **Verifica:** e2e «portfolio» (l'oggetto non c'è più nel bucket dopo l'eliminazione); `rls_smoke.sql` T54 (l'admin vede gli oggetti) e T55 (il cliente no).
+
+## 23. Caricamento foto muto da un indirizzo http interno (2026-11-23)
+- **Problema:** nei test (indirizzo `http://pf-web:3000`) il pulsante «Carica» non dava né esito né errore.
+- **Causa:** `crypto.randomUUID()` esiste solo nei contesti sicuri (https o localhost): da `pf-web` lanciava un'eccezione dentro la transizione, senza messaggio.
+- **Soluzione:** nome file UUID v4 generato con `crypto.getRandomValues`, e `try/catch` che mostra «Caricamento non riuscito» per qualsiasi eccezione.
+- **Verifica:** e2e «portfolio» da `pf-web`: foto caricata, pubblicata, eliminata.
+
+## 24. Collaudo RLS fragile sul database condiviso (2026-11-23)
+- **Problema:** `rls_smoke.sql` dava falsi rossi: «admin vede tutte = 2» falliva appena nel DB c'erano altre richieste, e i test del pannello alteravano i dati su cui contano i test delle notifiche (N1-N30).
+- **Causa:** conteggi assoluti su tabelle condivise (richieste, notifiche) e ordine dei blocchi: il cambio stato di `rb` aggiunge eventi all'outbox.
+- **Soluzione:** i conteggi riguardano solo i dati di prova (`id in (ra, rb)`, `user_id <> ...`); il blocco del pannello (T34-T55) gira dopo quello delle notifiche. Un'altra trappola: l'MCP annulla in automatico le istruzioni senza `WHERE`; ogni `UPDATE` del collaudo ha una condizione.
+- **Verifica:** `rls_smoke.sql` completo tutto `true` con altre richieste presenti nel database.
+
+## 25. e2e del pannello: due trabocchetti del server di sviluppo (2026-11-23)
+- **Problema:** (a) `getByRole("alert")` trovava due elementi; (b) i test non vedevano le modifiche ai file appena salvati.
+- **Causa:** (a) Next inserisce un suo `role="alert"` (route announcer) in ogni pagina; (b) con il volume montato dall'host il server di sviluppo a volte non ricompila al volo.
+- **Soluzione:** (a) gli esiti si cercano dentro il modulo (`form.getByRole(...)`); (b) dopo modifiche al codice si riavvia il servizio (`docker compose -p pf-admin restart app`) prima degli e2e.
+- **Verifica:** e2e del pannello verdi dopo il riavvio; nota nel README.
+
+## 26. File di migrazione con versione diversa da quella applicata (2026-11-23)
+- **Problema:** tre file in `supabase/migrations/` avevano un timestamp diverso dalla versione registrata nel database (`20261123032500`, `20261123130000`, `20261123140000`).
+- **Causa:** `apply_migration` (MCP) assegna la versione al momento dell'applicazione; i file erano stati nominati con un timestamp scelto a mano.
+- **Soluzione:** file rinominati alle versioni reali (`20261123032146`, `20261123031002`, `20261123073509`), riferimenti aggiornati in README e solitaria. Regola: dopo `apply_migration`, leggere la versione con `list_migrations` e usare quella nel nome del file.
+- **Verifica:** i 10 file corrispondono uno a uno alle 10 versioni restituite da `list_migrations`; con la CLI `supabase db push` nessuna migrazione risulterebbe da riapplicare.

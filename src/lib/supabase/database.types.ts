@@ -661,6 +661,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      change_request_status: {
+        Args: { p_note?: string; p_request_id: string; p_status: string }
+        Returns: undefined
+      }
       get_user_id_by_email: { Args: { p_email: string }; Returns: string }
       notify_claim_batch: {
         Args: { p_limit?: number }
