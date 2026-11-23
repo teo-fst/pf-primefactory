@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import type { NextRequest, NextResponse } from "next/server";
+import type { Database } from "./database.types";
 
 /**
  * Rinnova la sessione Supabase e scrive i cookie aggiornati sulla risposta
@@ -15,7 +16,7 @@ export async function updateSession(
   // Senza configurazione Supabase (es. primo avvio) lascia passare la richiesta.
   if (!url || !key) return response;
 
-  const supabase = createServerClient(url, key, {
+  const supabase = createServerClient<Database>(url, key, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
