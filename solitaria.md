@@ -111,3 +111,15 @@ Per ogni voce: problema, causa, soluzione, verifica. Le voci più recenti stanno
 - **Causa:** il database di sviluppo è condiviso e la pulizia iniziale dell'e2e admin elimina **tutti** gli utenti `pf-test+%`, compresi `pf-test+area@` e `pf-test+area-b@` a metà esecuzione.
 - **Soluzione:** l'e2e dell'area clienti usa il prefisso `pf-test+area` e il suo controllo dei residui conta solo quel prefisso; i test si eseguono quando non gira l'e2e admin (o si ripetono). Non si è cambiata la pulizia dell'altro blocco (fuori dal mio perimetro): conviene restringerla ai propri indirizzi (`pf-test+admin@`, `pf-test+cliente@`).
 - **Verifica:** 9/9 su due esecuzioni consecutive senza l'e2e admin attivo.
+
+## 19. Limite dei file oltre il tetto del piano gratuito (2026-11-23)
+- **Problema:** bucket `request-files` e `site_settings.max_upload_bytes` a 100 MB (Q10), ma il piano gratuito di Supabase rifiuta i file oltre 50 MB: l'utente avrebbe visto un errore generico a metà caricamento.
+- **Causa:** tetto globale per file del piano gratuito, più basso del limite del bucket.
+- **Soluzione:** migrazione `20261123074736_limiti_file_cliente`: bucket e impostazione a 52428800 byte. Il codice usa già `site_settings` per abbassare il limite, quindi l'interfaccia mostra "50 MB". Con il piano Pro basta riportare i due valori a 104857600.
+- **Verifica:** test SQL T33/T34 (bucket e impostazione a 50 MB).
+
+## 20. Campi di sistema dei file impostabili dal cliente (2026-11-23)
+- **Problema:** registrando un file, un cliente poteva valorizzare `synced_at`, `backed_up_at`, `cloud_deleted_at`, usati dal processo di copia sul server interno.
+- **Causa:** permesso di insert su tutte le colonne di `request_files` per il ruolo `authenticated`.
+- **Soluzione:** insert consentito solo su `request_id, storage_path, original_name, size_bytes, mime_type, uploaded_by` (stessa migrazione).
+- **Verifica:** T28 (registrazione normale riuscita) e T32 (insert con `synced_at` rifiutato) in `supabase/tests/rls_smoke.sql`.
