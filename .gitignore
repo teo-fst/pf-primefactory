@@ -24,3 +24,17 @@ dist/
 
 # Documenti privati (repo pubblico)
 intervista.md
+
+# Next.js / test / tooling
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+npm-debug.log*
+.open-next/
+.wrangler/
+playwright-report/
+test-results/
+.dev.vars
