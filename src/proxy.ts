@@ -13,6 +13,9 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Tutto tranne API, file interni di Next e file statici (con estensione)
-  matcher: ["/((?!api|trpc|_next|_vercel|.*\..*).*)"],
+  // Tutto tranne API, rotte /auth/* (conferma magic link e logout, senza prefisso lingua),
+  // file interni di Next e file statici (con estensione).
+  // Il punto va scritto "\\." : con un solo backslash la stringa JS perde l'escape e la regola
+  // escluderebbe qualsiasi percorso, quindi il proxy girerebbe solo su "/".
+  matcher: ["/((?!api|trpc|auth/|_next|_vercel|.*\\..*).*)"],
 };
