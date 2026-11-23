@@ -41,6 +41,11 @@ services:
     depends_on:
       app:
         condition: service_healthy
+    # Gli e2e con E2E_WITH_SUPABASE=1 creano utenti di prova con l'API admin di Supabase:
+    # servono le stesse variabili del servizio app (mai committate, solo dal file locale).
+    env_file:
+      - path: ${PF_ENV_FILE:-.env.local}
+        required: false
     environment:
       BASE_URL: http://pf-web:3000
       CI: "1"
