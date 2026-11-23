@@ -1,0 +1,26 @@
+# Segreti: qualsiasi cartella "segreti" a qualsiasi livello
+**/segreti/
+segreti/
+
+# File di ambiente con token
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+id_ecdsa*
+!id_*.pub
+
+# Claude locale
+.claude/settings.local.json
+
+# Build e dipendenze
+node_modules/
+.next/
+.vercel/
+dist/
+
+# Documenti privati (repo pubblico)
+intervista.md
