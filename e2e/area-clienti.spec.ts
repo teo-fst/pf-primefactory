@@ -93,7 +93,7 @@ test.describe("area clienti (con database)", () => {
     await expect(page.getByTestId("requests-table")).not.toContainText(requestB.public_code);
 
     await page.getByRole("link", { name: requestA.public_code }).click();
-    await expect(page).toHaveURL(new RegExp(`/it/area-clienti/${requestA.public_code}$`));
+    await expect(page).toHaveURL(new RegExp(`/it/area-clienti/${requestA.public_code}$`), { timeout: 45_000 }); // prima visita: compila la rotta in sviluppo
     await expect(page.getByRole("heading", { level: 1 })).toContainText(requestA.public_code);
     await expect(page.getByText("Supporto targa per la mia moto di prova, PETG nero.")).toBeVisible();
 
@@ -288,6 +288,22 @@ test.describe("area clienti (con database)", () => {
 
     // L'altro utente non e stato toccato
     expect(await findUserId(admin, EMAIL_B)).toBe(userB);
+  });
+
+  test("sessione ancora valida di un account eliminato: va ad accedi, senza cicli di redirect", async ({ browser }) => {
+    const email = "pf-test+area-c@example.invalid";
+    await purgeUser(admin, email);
+    await createTestUser(admin, email, "Test Area C");
+    try {
+      const page = await login(browser, email);
+      // L'account sparisce (es. eliminato da un altro dispositivo) ma il token nel cookie vale ancora.
+      await purgeUser(admin, email);
+      await page.goto("/it/area-clienti");
+      await expect(page).toHaveURL(/\/it\/accedi$/);
+      await expect(page.locator('input[name="email"]')).toBeVisible();
+    } finally {
+      await purgeUser(admin, email);
+    }
   });
 
   test("nessun utente di prova residuo dopo la pulizia", async () => {

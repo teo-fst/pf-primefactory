@@ -90,9 +90,9 @@ export async function createTestRequest(
   return data;
 }
 
-/** Quanti utenti di prova (email `pf-test+...`) esistono ancora in auth.users. */
+/** Quanti utenti di prova di QUESTO test (email `pf-test+area...`; altri blocchi usano altri prefissi) esistono ancora in auth.users. */
 export async function countLeftoverTestUsers(admin: AdminClient): Promise<number> {
   const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
   if (error) throw new Error(`listUsers: ${error.message}`);
-  return data.users.filter((u) => (u.email ?? "").startsWith("pf-test+")).length;
+  return data.users.filter((u) => (u.email ?? "").startsWith(TEST_EMAIL_PREFIX)).length;
 }
