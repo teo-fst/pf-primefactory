@@ -102,7 +102,7 @@ async function buildEmail(
     link:
       audience === "customer"
         ? customerAreaUrl(deps.config.siteUrl, locale)
-        : adminAreaUrl(deps.config.siteUrl, locale),
+        : adminAreaUrl(deps.config.siteUrl, locale, event.requestId),
   });
   return { to: recipient.email, ...rendered };
 }
@@ -161,7 +161,7 @@ async function deliver(
           publicCode: str(event.payload.public_code) ?? "",
           lineName: lineLabels?.it ?? null,
           fileCount: num(event.payload.file_count),
-          adminUrl: adminAreaUrl(deps.config.siteUrl, "it"),
+          adminUrl: adminAreaUrl(deps.config.siteUrl, "it", event.requestId),
         });
         if (text === null) continue;
         await deps.sendTelegram(text);

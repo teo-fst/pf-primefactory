@@ -93,3 +93,33 @@ Per ogni voce: problema, causa, soluzione, verifica. Le voci più recenti stanno
 - **Causa:** il nome della variabile (`secret`) più un valore ad alta entropia soddisfano la regola generica; erano valori inventati, non segreti.
 - **Soluzione:** valori di prova a bassa entropia (`prova-prova-prova-prova`), nessuna eccezione in `.gitleaks.toml`. I commit locali non ancora pubblicati sono stati rifatti, così nemmeno la storia contiene più i valori.
 - **Verifica:** `gitleaks git` (storia completa, 57 commit) e `gitleaks dir` sui file tracciati con v8.30.1 e `.gitleaks.toml`: nessuna fuga; i test del bearer passano ancora (rifiutano segreto sbagliato, di un carattere in più o in meno e maiuscolo).
+
+## 16. Nel pannello i campi tornavano al valore vecchio dopo il salvataggio (2026-11-23)
+- **Problema:** dopo «Salva stato» il menu a tendina tornava su «Richiesta ricevuta» e un secondo clic annullava il cambio; dopo un errore i testi scritti sparivano.
+- **Causa:** React 19, dopo un modulo con `action={...}`, richiama `form.reset()`. Per un `<select>` non controllato il valore iniziale non viene aggiornato (nemmeno con `key`), quindi il reset riporta il primo valore originale.
+- **Soluzione:** `ActionForm` (`src/components/admin/action-form.tsx`) gestisce l'invio a mano (`preventDefault` + `startTransition`) e non fa reset; `resetOnSuccess` svuota solo il modulo dei messaggi dopo un invio riuscito.
+- **Verifica:** e2e «cambio stato con nota»: il menu mostra lo stato appena salvato e un secondo invio dello stesso stato dà l'errore chiaro.
+
+## 17. Cancellare una foto dal portfolio lasciava il file nello Storage (2026-11-23)
+- **Problema:** «Elimina» rimuoveva la riga ma l'oggetto restava nel bucket `portfolio`, senza alcun errore.
+- **Causa:** l'API di Storage cancella con `DELETE ... RETURNING` e per vedere la riga serve anche una policy SELECT; per il bucket `portfolio` c'erano solo insert/update/delete per gli admin.
+- **Soluzione:** migrazione additiva `20261123140000_portfolio_admin_select.sql` (SELECT solo admin; la lettura pubblica delle foto non passa dalle policy).
+- **Verifica:** e2e «portfolio» (l'oggetto non c'è più nel bucket dopo l'eliminazione); `rls_smoke.sql` T48 (l'admin vede gli oggetti) e T49 (il cliente no).
+
+## 18. Caricamento foto muto da un indirizzo http interno (2026-11-23)
+- **Problema:** nei test (indirizzo `http://pf-web:3000`) il pulsante «Carica» non dava né esito né errore.
+- **Causa:** `crypto.randomUUID()` esiste solo nei contesti sicuri (https o localhost): da `pf-web` lanciava un'eccezione dentro la transizione, senza messaggio.
+- **Soluzione:** nome file UUID v4 generato con `crypto.getRandomValues`, e `try/catch` che mostra «Caricamento non riuscito» per qualsiasi eccezione.
+- **Verifica:** e2e «portfolio» da `pf-web`: foto caricata, pubblicata, eliminata.
+
+## 19. Collaudo RLS fragile sul database condiviso (2026-11-23)
+- **Problema:** `rls_smoke.sql` dava falsi rossi: «admin vede tutte = 2» falliva appena nel DB c'erano altre richieste, e i test del pannello alteravano i dati su cui contano i test delle notifiche (N1-N30).
+- **Causa:** conteggi assoluti su tabelle condivise (richieste, notifiche) e ordine dei blocchi: il cambio stato di `rb` aggiunge eventi all'outbox.
+- **Soluzione:** i conteggi riguardano solo i dati di prova (`id in (ra, rb)`, `user_id <> ...`); il blocco del pannello (T28-T49) gira dopo quello delle notifiche. Un'altra trappola: l'MCP annulla in automatico le istruzioni senza `WHERE`; ogni `UPDATE` del collaudo ha una condizione.
+- **Verifica:** `rls_smoke.sql` completo tutto `true` con altre richieste presenti nel database.
+
+## 20. e2e del pannello: due trabocchetti del server di sviluppo (2026-11-23)
+- **Problema:** (a) `getByRole("alert")` trovava due elementi; (b) i test non vedevano le modifiche ai file appena salvati.
+- **Causa:** (a) Next inserisce un suo `role="alert"` (route announcer) in ogni pagina; (b) con il volume montato dall'host il server di sviluppo a volte non ricompila al volo.
+- **Soluzione:** (a) gli esiti si cercano dentro il modulo (`form.getByRole(...)`); (b) dopo modifiche al codice si riavvia il servizio (`docker compose -p pf-admin restart app`) prima degli e2e.
+- **Verifica:** e2e del pannello verdi dopo il riavvio; nota nel README.

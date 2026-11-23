@@ -67,7 +67,7 @@ begin
   -- Admin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
-  select count(*) into n from public.requests; res := res || 'T16 admin vede tutte=' || (n=2) || '; ';
+  select count(*) into n from public.requests where id in (ra, rb); res := res || 'T16 admin vede tutte (anche quelle degli altri clienti)=' || (n=2) || '; ';
   select count(*) into n from public.business_lines; res := res || 'T17 admin vede anche oscurate=' || (n=5) || '; ';
   update public.requests set status = 'in_valutazione' where id = ra; get diagnostics n = row_count; res := res || 'T18 admin cambia stato=' || (n=1) || '; ';
   insert into public.site_texts (key, locale, value) values ('test.x', 'it', 'x'); res := res || 'T22 admin scrive testi=true; ';
@@ -214,8 +214,8 @@ begin
   execute 'reset role';
   select h.note into nota from public.request_status_history h where h.request_id = rb order by h.id desc limit 1;
   res := res || 'T28 la nota finisce nello storico=' || coalesce(nota = 'nota di prova', false) || '; ';
-  select count(*) into n from public.request_status_history where request_id = rb;
-  res := res || 'T31 un solo evento di storico per il cambio=' || (n = 2) || '; ';
+  select count(*) into n from public.request_status_history where request_id = rb and note = 'nota di prova';
+  res := res || 'T31 una sola riga di storico porta la nota=' || (n = 1) || '; ';
 
   -- Notifiche: ognuno vede e segna come lette solo le proprie
   insert into public.notifications (user_id, kind) values (adm, 'test'), (a, 'test'), (a, 'test');

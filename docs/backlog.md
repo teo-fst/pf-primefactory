@@ -49,9 +49,9 @@ Derivato da `docs/decisioni-grilling.md` (riferimenti Qn). Stato iniziale: tutto
 - [ ] Pulsante "elimina il mio account" (Q38).
 
 ### F1.9 Pannello admin minimo
-- [ ] Richieste: elenco, dettaglio, cambio stato, messaggi, allegati (Q13, Q35).
-- [ ] Gestione portfolio, eventi, testi, visibilità linee e pagine (Q16, Q34).
-- [ ] Notifiche in-app (Q27).
+- [x] Richieste: elenco, dettaglio, cambio stato, messaggi, allegati (Q13, Q35).
+- [x] Gestione portfolio, eventi, testi, visibilità linee e pagine (Q16, Q34).
+- [x] Notifiche in-app (Q27).
 
 ### F1.10 Notifiche
 - [ ] Email Resend al cliente (conferma, cambio stato, messaggi) e ai soci (Q13, Q27).
