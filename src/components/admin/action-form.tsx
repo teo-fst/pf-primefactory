@@ -1,7 +1,17 @@
 "use client";
 
-import { createContext, startTransition, useActionState, useContext, useEffect, useRef, type FormEvent, type ReactNode } from "react";
+import {
+  createContext,
+  startTransition,
+  useActionState,
+  useContext,
+  useEffect,
+  useRef,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { Button } from "@/components/ui/button";
+import { useHydrated } from "@/components/admin/use-hydrated";
 import { IDLE_STATE, type ActionState } from "@/lib/admin/action-state";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +43,8 @@ export function ActionForm({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, dispatch, pending] = useActionState<ActionState, FormData>(action, IDLE_STATE);
+  // Segnala che il modulo è pronto (JavaScript attivo): i test aspettano questo prima di cliccare.
+  const hydrated = useHydrated();
 
   useEffect(() => {
     if (resetOnSuccess && state.status === "ok") formRef.current?.reset();
@@ -46,7 +58,15 @@ export function ActionForm({
   }
 
   return (
-    <form ref={formRef} onSubmit={onSubmit} className={className} data-testid={testId} aria-busy={pending}>
+    <form
+      ref={formRef}
+      onSubmit={onSubmit}
+      className={className}
+      data-testid={testId}
+      data-client-form="true"
+      data-hydrated={hydrated ? "true" : undefined}
+      aria-busy={pending}
+    >
       <PendingContext.Provider value={pending}>{children}</PendingContext.Provider>
       {state.status !== "idle" ? (
         <p

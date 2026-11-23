@@ -103,16 +103,27 @@ async function apiAs(email: string): Promise<SupabaseClient> {
   return client;
 }
 
+/** Pagina caricata e moduli con JavaScript pronti: prima di allora un clic salterebbe conferme e invio via Server Action. */
+async function settled(page: Page) {
+  await page.waitForLoadState("load");
+  await page.waitForFunction(
+    () => Array.from(document.querySelectorAll("form[data-client-form]")).every((f) => f.hasAttribute("data-hydrated")),
+    undefined,
+    { timeout: 90_000 },
+  );
+}
+
 async function openAdmin(context: BrowserContext, path: string): Promise<Page> {
   const page = await context.newPage();
   page.on("dialog", (dialog) => void dialog.accept());
   await page.goto(path);
-  await page.waitForLoadState("networkidle");
+  await settled(page);
   return page;
 }
 
 // Prima prova: non richiede il database. Senza sessione /admin porta sempre alla pagina di accesso.
 test("/it/admin senza sessione porta ad accedi", async ({ page }) => {
+  test.setTimeout(120_000); // il primo accesso a una rotta con il server di sviluppo compila la pagina
   await page.goto("/it/admin");
   await expect(page).toHaveURL(/\/it\/accedi$/);
   await page.goto("/en/admin/richieste");
@@ -381,7 +392,7 @@ test.describe("pannello admin (con database)", () => {
     await page.getByLabel("Data di inizio").fill("2027-06-01");
     await page.getByRole("button", { name: "Crea evento" }).click();
     await page.waitForURL(/\/it\/admin\/eventi\/\d+/);
-    await page.waitForLoadState("networkidle");
+    await settled(page);
 
     const { data: created } = await api.from("events").select("id, source_code, published").eq("source_code", code).single();
     expect(created).toMatchObject({ source_code: code, published: false });
@@ -411,7 +422,7 @@ test.describe("pannello admin (con database)", () => {
     // Un secondo evento con lo stesso titolo: il codice proposto è già usato (errore chiaro);
     // lasciandolo vuoto il server ne genera uno unico (-2)
     await page.goto("/it/admin/eventi");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     const newForm = page.getByTestId("event-form");
     await newForm.getByLabel("Titolo (italiano)").fill(title);
     await newForm.getByLabel("Data di inizio").fill("2027-06-02");
@@ -475,7 +486,7 @@ test.describe("pannello admin (con database)", () => {
   test("contenuti: interruttore preventivi con conferma, editor della form_schema con validazione", async () => {
     const page = await adminCtx.newPage();
     await page.goto("/it/admin/contenuti/visibilita");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     const before = (await api.from("site_settings").select("value").eq("key", "quote_mode").single()).data?.value;
 
     // Conferma rifiutata: nessun cambiamento
@@ -486,7 +497,7 @@ test.describe("pannello admin (con database)", () => {
 
     // Editor: JSON rotto -> errori e pulsante spento; schema valida -> salva
     await page.goto("/it/admin/contenuti/moduli?linea=riciclo");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     const editor = page.getByTestId("schema-form");
     await editor.locator('textarea[name="schema"]').fill('[{"key":"Marca","type":"boh","label_it":"","extra":1}]');
     await expect(page.getByTestId("schema-issues")).toContainText("chiave non valida");
@@ -564,7 +575,7 @@ test.describe("pannello admin (con database)", () => {
     await expect(page.getByTestId("notification-bell")).toHaveAccessibleName(`Notifiche: ${before} non lette`);
 
     await page.goto("/it/admin/notifiche");
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     const list = page.getByTestId("notifications-list");
     await expect(list).toContainText(`Nuova richiesta ${state.requestCode}`);
     await expect(list).toContainText(`Nuovo messaggio del cliente sulla richiesta ${state.requestCode}`);
@@ -575,7 +586,7 @@ test.describe("pannello admin (con database)", () => {
     await page.waitForURL(new RegExp(`/it/admin/richieste/${state.requestId}$`));
     await expect(page.getByTestId("request-code")).toHaveText(state.requestCode);
     await page.goBack();
-    await page.waitForLoadState("networkidle");
+    await settled(page);
 
     await list.locator('li[data-unread="true"]').first().getByRole("button", { name: "Segna come letta" }).click();
     await expect.poll(unreadNow, { timeout: 30_000 }).toBeLessThan(before);

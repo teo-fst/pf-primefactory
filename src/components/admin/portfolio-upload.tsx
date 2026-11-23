@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { useHydrated } from "@/components/admin/use-hydrated";
 import { Field, inputClass } from "@/components/interest/field";
 import type { ActionState } from "@/lib/admin/action-state";
 import type { AdminMessages } from "@/lib/admin/messages";
@@ -43,6 +44,8 @@ export function PortfolioUpload({ lines, messages: m, createItem }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
   const [result, setResult] = useState<ActionState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
+  // Segnala che il modulo è pronto (JavaScript attivo): i test aspettano questo prima di cliccare.
+  const hydrated = useHydrated();
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -88,7 +91,14 @@ export function PortfolioUpload({ lines, messages: m, createItem }: Props) {
   }
 
   return (
-    <form ref={formRef} onSubmit={onSubmit} className="flex flex-col gap-4" data-testid="portfolio-upload">
+    <form
+      ref={formRef}
+      onSubmit={onSubmit}
+      className="flex flex-col gap-4"
+      data-testid="portfolio-upload"
+      data-client-form="true"
+      data-hydrated={hydrated ? "true" : undefined}
+    >
       <Field id="pf-file" label={m.file} hint={m.fileHint}>
         <input id="pf-file" name="file" type="file" accept="image/jpeg,image/png,image/webp,image/avif" className={inputClass} />
       </Field>
