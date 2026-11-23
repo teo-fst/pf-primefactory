@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 // In locale (profilo e2e di docker compose) BASE_URL punta al servizio `app`.
 // In CI parte da solo il server di produzione con `npm run build && npm start`.
-const baseURL = process.env.BASE_URL ?? "http://localhost:3000";
+const baseURL = process.env.BASE_URL || "http://localhost:3000";
 
 export default defineConfig({
   testDir: "./e2e",
