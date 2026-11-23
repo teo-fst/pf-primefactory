@@ -77,11 +77,13 @@ anteponi `MSYS_NO_PATHCONV=1`.
 │   ├── components/site/   header, footer, selettore lingua, griglie del sito pubblico
 │   ├── i18n/              configurazione next-intl (lingue, routing, messaggi)
 │   ├── lib/content/       strato dati del sito pubblico (solo server) e cache Redis
+│   ├── lib/notify/        notifiche: processore dell'outbox, template email IT/EN, Resend, Telegram (solo server)
 │   ├── lib/supabase/      client Supabase: browser, server, refresh sessione, tipi generati
 │   └── proxy.ts           unisce next-intl e sessione Supabase
 ├── messages/              testi tradotti: it.json, en.json
 ├── e2e/                   test Playwright
 ├── tests/unit/            test Vitest
+├── tests/integration/     test Vitest con il database reale (solo con E2E_WITH_SUPABASE=1)
 ├── supabase/              config.toml e migrazioni (supabase/migrations)
 ├── ops/keepalive-worker/  Worker Cloudflare che tiene sveglio Supabase
 ├── .github/workflows/     CI (ci.yml) e deploy (deploy.yml)
@@ -298,8 +300,9 @@ docker compose --profile e2e run --rm -e E2E_WITH_SUPABASE=1 e2e   # e2e complet
 ```
 
 Senza `E2E_WITH_SUPABASE=1` (come in CI, dove Supabase è fittizio) i test che leggono linee e impostazioni
-dal database sono saltati. Nessun test crea utenti o richieste: gli invii di prova reali si fanno a mano e si
-cancellano con `auth.admin.deleteUser` (la cancellazione dell'utente elimina a cascata profilo e richieste).
+dal database sono saltati. I test e2e non creano utenti o richieste (solo l'integrazione delle notifiche lo fa, e
+ripulisce: vedi la sezione Notifiche): gli invii di prova reali si fanno a mano e si cancellano con
+`auth.admin.deleteUser` (la cancellazione dell'utente elimina a cascata profilo e richieste).
 
 ### Note e limiti noti
 
@@ -321,3 +324,137 @@ cancellano con `auth.admin.deleteUser` (la cancellazione dell'utente elimina a c
   `docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest git /repo`.
 - `next.config.ts`: `allowedDevOrigins: ["pf-web"]` serve ai test Playwright nel container (senza, Next blocca
   gli script di sviluppo e la pagina non si idrata); `experimental.authInterrupts` abilita `forbidden()`.
+
+## Notifiche (F1.10)
+
+Email al cliente (conferma, cambio stato, nuovo messaggio), email ai soci admin (nuova richiesta, file caricato,
+messaggio del cliente), messaggio nel gruppo Telegram dei soci (nuova richiesta, file caricato) e notifiche in-app
+per gli admin (Q13, Q27, Q31, Q35).
+
+### Come funziona
+
+```
+evento nel database ──trigger──> tabella notification_outbox ──processore──> Resend (email) / Telegram
+ (richiesta, stato,                (una riga per evento,                      src/lib/notify/
+  messaggio, file)                  solo dati minimi)
+```
+
+1. **Gli eventi nascono nel database**, con trigger su `requests`, `request_messages` e `request_files`
+   (migrazione `supabase/migrations/20261123031029_notifiche_outbox.sql`). Non servono modifiche all'area clienti o al
+   pannello admin: qualunque codice che scriva in quelle tabelle genera l'evento. Gli stessi trigger creano le
+   righe di `notifications` (avviso in-app) per ogni admin.
+2. **L'outbox** (`notification_outbox`) ha RLS attiva e nessuna policy: la leggono e la scrivono solo i trigger e
+   la chiave segreta del server (`service_role`). Contiene codice pubblico, linea e id tecnici, **mai** nome, email,
+   telefono, testi dei messaggi o nomi dei file.
+3. **Il processore** (`src/lib/notify/`, solo server) prende un lotto con `notify_claim_batch` (`for update skip locked`
+   e "lease" di 5 minuti), consegna, e registra l'esito con `notify_mark_done` / `notify_mark_failed`. Le tre funzioni
+   sono eseguibili solo da `service_role`.
+
+| Evento (`event_type`) | Quando nasce | Email al cliente | Email ai soci | Telegram | In-app admin |
+|-----------------------|--------------|:----------------:|:-------------:|:--------:|:------------:|
+| `request_created` | nuova richiesta | si (conferma) | si | si | si |
+| `status_changed` | cambio di `status`, solo se lo stato di arrivo ha `notify_client` | si | no | no | no |
+| `message_from_customer` | messaggio del cliente | no | si | no | si |
+| `message_from_admin` | messaggio di un admin/operatore **non interno** | si | no | no | no |
+| `file_uploaded` | file caricato dal cliente (o dal server) | no | si | si | si |
+
+Le note interne (`internal = true`) e i file caricati da admin/operatore non generano nulla. Più file caricati di
+seguito sulla stessa richiesta, prima che il processore li prenda in carico, diventano **un solo** evento
+(`file_count`): niente dieci email e dieci messaggi Telegram.
+
+Interpretazioni conservative annotate: i messaggi di un operatore contano come "dello staff" (oggi la RLS non gli permette
+di scrivere); le email degli admin usano la lingua del loro profilo; fr/es ricadono sull'italiano.
+
+### Affidabilità
+
+- **Ritentativi**: dopo un errore si riprova dopo 2, 10, 30 e 120 minuti, per un massimo di 5 tentativi
+  (`src/lib/notify/backoff.ts`). Dopo il quinto l'evento resta in coda con `last_error` (solo un codice, es. `resend_403`).
+- **Niente email doppie**: ogni consegna (cliente, ciascun admin, Telegram) è registrata in `delivered`; un
+  ritentativo rifà solo ciò che manca. Resend riceve anche un `Idempotency-Key` per evento e destinatario.
+- **Log senza dati personali**: compaiono solo l'id dell'evento e il codice dell'errore.
+- Controllo della coda e riaccodamento di un evento esaurito (SQL Editor di Supabase):
+
+  ```sql
+  select id, event_type, attempts, last_error, processed_at from public.notification_outbox order by id desc limit 20;
+  -- dopo aver risolto la causa (chiave, dominio, ecc.):
+  update public.notification_outbox set attempts = 0, next_attempt_at = now(), last_error = null where id = 123;
+  ```
+
+### Esecuzione periodica
+
+Due strade, entrambe chiamano lo stesso processore:
+
+1. **Cron ogni 5 minuti** (principale): il Worker `ops/keepalive-worker` fa `POST /api/cron/notifiche` con
+   `Authorization: Bearer <CRON_SECRET>`. L'endpoint confronta il segreto a tempo costante e risponde `401` senza token
+   (`503` se `CRON_SECRET` non è configurato), `200` con soli conteggi (`{"enabled":true,"claimed":2,"processed":2,...}`).
+   *Perché non nel Worker del sito*: l'handler OpenNext esporta solo `fetch`; aggiungere `scheduled` obbliga a sostituire `main`
+   in `wrangler.jsonc` con un file che riesporta `.open-next/worker.js` e le sue classi Durable Object, da tenere allineato
+   a ogni versione di OpenNext. Il Worker separato è più semplice e non tocca il deploy del sito (vedi `ops/keepalive-worker/README.md`).
+2. **Invio immediato** dopo il modulo: la Server Action chiama `after(kickNotifications)` (`next/server`), quindi il
+   visitatore non aspetta. Non solleva mai errori e al massimo parte una volta ogni 5 secondi per istanza.
+   Se fallisce, ci pensa il cron.
+
+Prova a mano (il segreto va letto dal file env, non scritto nel comando):
+
+```bash
+curl -i -X POST https://<dominio>/api/cron/notifiche                                    # 401
+curl -i -X POST -H "Authorization: Bearer $CRON_SECRET" https://<dominio>/api/cron/notifiche   # 200
+```
+
+### Variabili d'ambiente
+
+| Variabile | `.env.local` | Segreto/variabile del Worker del sito | Note |
+|-----------|:------------:|:-------------------------------------:|------|
+| `RESEND_API_KEY` | si | segreto | Chiave "solo invio". Senza, il processore **non prende in carico** nulla: gli eventi restano in coda. |
+| `EMAIL_FROM` | opzionale | **obbligatoria in produzione** (segreto o variabile) | Es. `Primefactory <noreply@dominio>`. In sviluppo il default è `Primefactory <onboarding@resend.dev>`; in produzione senza `EMAIL_FROM` non parte nulla. |
+| `NOTIFY_DEV_REDIRECT_TO` | solo sviluppo | non impostarla | Se impostata, **tutte** le email vanno a questo indirizzo e il destinatario originale compare nell'oggetto (`[a: ...]`). |
+| `TELEGRAM_BOT_TOKEN` | si | segreto | Il token del bot (da BotFather). |
+| `TELEGRAM_CHAT_ID` | si | segreto | Id del gruppo soci (numero, di solito negativo). Con token o chat id mancanti, Telegram si salta senza errore. |
+| `CRON_SECRET` | si | segreto | Stringa lunga e casuale. **Lo stesso valore** va nel Worker `pf-keepalive`. |
+| `NEXT_PUBLIC_SITE_URL` | si | variabile **di build** | Base dei link nelle email e nei messaggi Telegram. |
+
+Segreti del Worker del sito, in container: `npx wrangler secret put RESEND_API_KEY` (idem per `EMAIL_FROM`,
+`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `CRON_SECRET`). Per `wrangler dev` mettili in `.dev.vars` (già nel `.gitignore`).
+Nel Worker `pf-keepalive`: `NOTIFY_URL` e `CRON_SECRET` (vedi il suo README).
+
+### Resend: limiti da conoscere
+
+- Senza un **dominio verificato** su Resend, solo l'indirizzo del proprietario dell'account può ricevere email e il
+  mittente deve essere `onboarding@resend.dev`. Per i clienti serve il dominio (prerequisito della Fase 1).
+- In sviluppo usa `NOTIFY_DEV_REDIRECT_TO` con l'indirizzo del proprietario dell'account Resend. Mai indirizzi inventati.
+- Con `RESEND_API_KEY` impostata nel tuo `.env.local`, anche un test che crea richieste (es. un invio reale del modulo)
+  fa partire l'invio immediato. Per i test che scrivono richieste tieni impostata `NOTIFY_DEV_REDIRECT_TO`, oppure
+  togli `RESEND_API_KEY` dall'ambiente di quel comando (`-e RESEND_API_KEY=`).
+
+### Telegram: bot e gruppo
+
+1. Su Telegram scrivi a `@BotFather`, `/newbot`, copia il token in `TELEGRAM_BOT_TOKEN` (solo in `.env.local`).
+2. Aggiungi il bot al gruppo dei soci e scrivi un messaggio nel gruppo.
+3. Ricava l'id del gruppo: `getUpdates` del bot (sul token non fare copia-incolla in chat o in un ticket) mostra
+   `"chat":{"id":-100...}`. Quel numero va in `TELEGRAM_CHAT_ID`.
+
+Il messaggio contiene **solo** codice pubblico, linea e link al pannello admin (Q31). Il tipo `TelegramInput`
+(`src/lib/notify/telegram.ts`) elenca soltanto questi campi: non può leggere altro.
+
+### Test
+
+```bash
+docker compose run --rm app npx vitest run tests/unit/notify          # template IT/EN, destinatari, backoff, bearer, Telegram, processore
+docker compose run --rm -e E2E_WITH_SUPABASE=1 app npx vitest run tests/integration   # database reale, invii simulati
+```
+
+L'integrazione crea `pf-test+notifiche@example.invalid` (cliente) e `pf-test+notifiche-admin@example.invalid` (admin),
+verifica trigger, outbox e notifiche in-app, esegue il processore con `fetch` finto per Resend e Telegram e alla fine
+cancella tutto. Il test di **invio reale** a Resend parte solo con `NOTIFY_REAL_SEND_TEST=1` **e** `NOTIFY_DEV_REDIRECT_TO`
+impostata. Il collaudo SQL è `supabase/tests/rls_smoke.sql` (etichette `N1`..`N30` per le notifiche).
+
+### Note e limiti noti
+
+- **Link**: puntano alla radice di area clienti (`/<lingua>/area-clienti`) e admin (`/<lingua>/admin`). Quando le pagine di
+  dettaglio avranno un indirizzo stabile, si cambia solo `src/lib/notify/links.ts`.
+- **Limite di richieste di un Worker**: il piano gratuito consente 50 richieste a Supabase/Resend per invocazione. Un lotto
+  è di 10 eventi e le letture ripetute (linea, admin, cliente) sono memorizzate nel lotto; con molti admin e molti eventi
+  insieme conviene il piano a pagamento o un lotto più piccolo (`DEFAULT_BATCH_SIZE` in `processor.ts`).
+- **Pulizia**: le righe consegnate restano nell'outbox. Una pulizia periodica (per esempio dopo 90 giorni) si può unire
+  al job di conservazione dati (F1.14).
+- **Contenuto delle email**: dicono "c'è un nuovo messaggio/file" e rimandano all'area riservata; non riportano il testo.
