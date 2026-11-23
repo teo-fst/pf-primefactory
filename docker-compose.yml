@@ -41,6 +41,11 @@ services:
     depends_on:
       app:
         condition: service_healthy
+    # Stesso file env del servizio app: i test con E2E_WITH_SUPABASE=1 creano utenti di prova
+    # con la chiave segreta (solo in locale: in CI il file env non esiste e quei test restano saltati).
+    env_file:
+      - path: ${PF_ENV_FILE:-.env.local}
+        required: false
     environment:
       BASE_URL: http://pf-web:3000
       CI: "1"

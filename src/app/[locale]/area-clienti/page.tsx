@@ -14,8 +14,8 @@ type AccountMessages = (typeof itMessages)["account"];
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
-// Area clienti minima (F1.7): elenco delle PROPRIE richieste. La versione completa (file, conversazione)
-// arriva con F1.8. I dati si leggono con il client della sessione: la RLS è la vera barriera, e il filtro
+// Area clienti: elenco delle PROPRIE richieste, con link al dettaglio (file e conversazione, F1.8).
+// I dati si leggono con il client della sessione: la RLS è la vera barriera, e il filtro
 // su customer_id serve a non mostrare agli admin anche le richieste degli altri in questa pagina.
 export default async function AccountPage({ params }: Props) {
   const { locale } = await params;
@@ -77,7 +77,15 @@ export default async function AccountPage({ params }: Props) {
             <tbody>
               {requests.map((r) => (
                 <tr key={r.id} className="border-b border-zinc-200">
-                  <td className="py-2 pr-4 font-mono">{r.public_code}</td>
+                  <td className="py-2 pr-4 font-mono">
+                    <Link
+                      href={`/area-clienti/${r.public_code}`}
+                      className="underline underline-offset-2"
+                      aria-label={`${m.openRequest} ${r.public_code}`}
+                    >
+                      {r.public_code}
+                    </Link>
+                  </td>
                   <td className="py-2 pr-4">{r.kind === "preventivo" ? m.kindQuote : m.kindInterest}</td>
                   <td className="py-2 pr-4">
                     {r.business_lines ? pick(r.business_lines.name_it, r.business_lines.name_en) : "—"}
@@ -97,7 +105,9 @@ export default async function AccountPage({ params }: Props) {
         <Link href="/lista-interesse" className="underline underline-offset-2">
           {m.newRequest}
         </Link>
-        <span>{m.comingSoon}</span>
+        <Link href="/area-clienti/profilo" className="underline underline-offset-2">
+          {m.profileLink}
+        </Link>
       </p>
     </div>
   );

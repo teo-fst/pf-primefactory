@@ -5,7 +5,7 @@
 do $$
 declare
   a uuid := gen_random_uuid(); b uuid := gen_random_uuid(); adm uuid := gen_random_uuid();
-  ra uuid; rb uuid; n int; res text := '';
+  ra uuid; rb uuid; n int; tot int; res text := '';
 begin
   insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at)
   values (a, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'test-a@example.invalid', '{"full_name":"A"}', now(), now()),
@@ -17,6 +17,8 @@ begin
   insert into public.requests (customer_id, business_line_id, description, privacy_consent_at)
     values (b, (select id from public.business_lines where slug='gioielleria'), 'Anello argento test', now()) returning id into rb;
   insert into public.request_messages (request_id, author_id, body, internal) values (ra, adm, 'pubblico', false), (ra, adm, 'nota interna', true);
+  -- Totale delle richieste nel DB (di prova + eventuali altre): T16 lo confronta con ciò che vede l'admin.
+  select count(*) into tot from public.requests;
 
   -- T0: lo storico degli stati si crea da solo all'inserimento
   select count(*) into n from public.request_status_history where request_id in (ra, rb);
@@ -67,7 +69,7 @@ begin
   -- Admin
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
-  select count(*) into n from public.requests; res := res || 'T16 admin vede tutte=' || (n=2) || '; ';
+  select count(*) into n from public.requests; res := res || 'T16 admin vede tutte, anche con altre richieste nel DB=' || (n=tot) || '; ';
   select count(*) into n from public.business_lines; res := res || 'T17 admin vede anche oscurate=' || (n=5) || '; ';
   update public.requests set status = 'in_valutazione' where id = ra; get diagnostics n = row_count; res := res || 'T18 admin cambia stato=' || (n=1) || '; ';
   insert into public.site_texts (key, locale, value) values ('test.x', 'it', 'x'); res := res || 'T22 admin scrive testi=true; ';
@@ -186,6 +188,27 @@ begin
     res := res || 'N30 notify_mark_failed registra errore, consegne e nuova attesa=' || (n=1) || '; ';
     execute 'reset role';
   end;
+
+  -- Area clienti (F1.8): registrazione dei file. Sta in fondo, dopo i test N, per non alterarne i conteggi
+  -- (ogni file del cliente genera eventi e notifiche). T28-T31 proseguono la numerazione dei test T.
+  res := res || '; ';
+  insert into public.request_files (request_id, storage_path, original_name, size_bytes, uploaded_by)
+    values (rb, rb::text || '/00000000-0000-4000-8000-000000000000-d.stl', 'd.stl', 10, b);
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  insert into public.request_files (request_id, storage_path, original_name, size_bytes, uploaded_by)
+    values (ra, ra::text || '/00000000-0000-4000-8000-000000000000-a.stl', 'a.stl', 10, a);
+  res := res || 'T28 A registra un file sulla sua richiesta=true; ';
+  begin insert into public.request_files (request_id, storage_path, original_name, size_bytes, uploaded_by)
+    values (ra, rb::text || '/00000000-0000-4000-8000-000000000000-b.stl', 'b.stl', 10, a);
+    res := res || 'T29 A non registra il percorso di un altro=false; ';
+  exception when check_violation then res := res || 'T29 A non registra il percorso di un altro=true; '; end;
+  begin insert into public.request_files (request_id, storage_path, original_name, size_bytes, uploaded_by)
+    values (rb, rb::text || '/00000000-0000-4000-8000-000000000000-c.stl', 'c.stl', 10, a);
+    res := res || 'T30 A non registra file sulla richiesta di B=false; ';
+  exception when insufficient_privilege then res := res || 'T30 A non registra file sulla richiesta di B=true; '; end;
+  select count(*) into n from public.request_files where request_id = rb; res := res || 'T31 A non vede file di B=' || (n=0) || '; ';
+  execute 'reset role';
 
   raise exception 'RISULTATI: %', res;
 end;

@@ -93,3 +93,21 @@ Per ogni voce: problema, causa, soluzione, verifica. Le voci più recenti stanno
 - **Causa:** il nome della variabile (`secret`) più un valore ad alta entropia soddisfano la regola generica; erano valori inventati, non segreti.
 - **Soluzione:** valori di prova a bassa entropia (`prova-prova-prova-prova`), nessuna eccezione in `.gitleaks.toml`. I commit locali non ancora pubblicati sono stati rifatti, così nemmeno la storia contiene più i valori.
 - **Verifica:** `gitleaks git` (storia completa, 57 commit) e `gitleaks dir` sui file tracciati con v8.30.1 e `.gitleaks.toml`: nessuna fuga; i test del bearer passano ancora (rifiutano segreto sbagliato, di un carattere in più o in meno e maiuscolo).
+
+## 16. Ciclo di redirect con token valido e account eliminato (2026-11-23)
+- **Problema:** con la sessione di un account già eliminato (da un altro dispositivo, o da un test) il browser andava in `ERR_TOO_MANY_REDIRECTS` tra `/it/accedi` e `/it/area-clienti`.
+- **Causa:** `/accedi` mandava all'area clienti chiunque avesse un token valido (`getClaims()` controlla solo la firma); l'area clienti, non trovando il profilo, rimandava ad `/accedi`.
+- **Soluzione:** `/accedi` reindirizza solo se esiste anche il profilo (`getCurrentProfile()`); altrimenti mostra il modulo di accesso.
+- **Verifica:** e2e `sessione ancora valida di un account eliminato` (crea l'utente, apre una sessione, lo elimina, apre `/it/area-clienti` e ottiene `/it/accedi` con il modulo).
+
+## 17. Caricamento file che non partiva su http (2026-11-23)
+- **Problema:** nel container e2e (`http://pf-web:3000`) la scelta di un file non avviava nessun caricamento e non compariva alcun errore.
+- **Causa:** `crypto.randomUUID()` esiste solo in contesti sicuri (https o `localhost`): su http è `undefined` e lanciava un'eccezione nel gestore.
+- **Soluzione:** UUID generato con `crypto.getRandomValues` (`randomUuid()` in `src/lib/account/files.ts`); ogni file è caricato in un blocco `try/catch`, così un errore imprevisto lo segna come fallito senza lasciare il modulo bloccato.
+- **Verifica:** e2e `carica un file` (Storage, riga in `request_files`, stato `file_ricevuti`, download con URL firmato).
+
+## 18. Test e2e che cancellano gli utenti di prova degli altri (2026-11-23)
+- **Problema:** i test dell'area clienti fallivano a caso (`errore=link`, pagina senza richiesta, profilo non trovato) quando girava in parallelo l'e2e del pannello admin.
+- **Causa:** il database di sviluppo è condiviso e la pulizia iniziale dell'e2e admin elimina **tutti** gli utenti `pf-test+%`, compresi `pf-test+area@` e `pf-test+area-b@` a metà esecuzione.
+- **Soluzione:** l'e2e dell'area clienti usa il prefisso `pf-test+area` e il suo controllo dei residui conta solo quel prefisso; i test si eseguono quando non gira l'e2e admin (o si ripetono). Non si è cambiata la pulizia dell'altro blocco (fuori dal mio perimetro): conviene restringerla ai propri indirizzi (`pf-test+admin@`, `pf-test+cliente@`).
+- **Verifica:** 9/9 su due esecuzioni consecutive senza l'e2e admin attivo.
