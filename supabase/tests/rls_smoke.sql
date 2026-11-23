@@ -55,6 +55,19 @@ begin
   -- T24: un cliente autenticato non può chiamare get_user_id_by_email (ricerca utenti per email, solo service_role)
   begin perform public.get_user_id_by_email('test-a@example.invalid'); res := res || 'T24 A non chiama get_user_id_by_email=false; ';
   exception when insufficient_privilege then res := res || 'T24 A non chiama get_user_id_by_email=true; '; end;
+  -- T28/T29: registrazione file (F1.8). Solo percorsi nella cartella della propria richiesta.
+  insert into public.request_files (request_id, storage_path, original_name, size_bytes, uploaded_by)
+    values (ra, ra::text || '/00000000-0000-4000-8000-000000000000-a.stl', 'a.stl', 10, a);
+  res := res || 'T28 A registra un file sulla sua richiesta=true; ';
+  begin insert into public.request_files (request_id, storage_path, original_name, size_bytes, uploaded_by)
+    values (ra, rb::text || '/00000000-0000-4000-8000-000000000000-b.stl', 'b.stl', 10, a);
+    res := res || 'T29 A non registra il percorso di un altro=false; ';
+  exception when check_violation then res := res || 'T29 A non registra il percorso di un altro=true; '; end;
+  begin insert into public.request_files (request_id, storage_path, original_name, size_bytes, uploaded_by)
+    values (rb, rb::text || '/00000000-0000-4000-8000-000000000000-c.stl', 'c.stl', 10, a);
+    res := res || 'T30 A non registra file sulla richiesta di B=false; ';
+  exception when insufficient_privilege then res := res || 'T30 A non registra file sulla richiesta di B=true; '; end;
+  select count(*) into n from public.request_files; res := res || 'T31 A vede solo i suoi file=' || (n=1) || '; ';
   execute 'reset role';
 
   -- Visitatore anonimo: nemmeno lui può cercare utenti per email
