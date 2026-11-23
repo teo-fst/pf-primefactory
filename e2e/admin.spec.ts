@@ -520,17 +520,19 @@ test.describe("pannello admin (con database)", () => {
     await expect(row).toHaveCount(1);
     await expect(page.getByTestId("user-row").filter({ hasText: ADMIN_EMAIL })).toContainText("tu");
 
+    // Il messaggio «Ruolo aggiornato.» del primo cambio resta a video: si aspetta il database, non il messaggio.
+    const roleInDb = async () => (await api.from("profiles").select("role").eq("id", state.customerId).single()).data?.role;
+
     await row.locator('select[name="role"]').selectOption("operatore");
     await row.getByRole("button", { name: "Applica" }).click();
     await expect(row.getByRole("status")).toHaveText("Ruolo aggiornato.");
-    expect((await api.from("profiles").select("role").eq("id", state.customerId).single()).data?.role).toBe("operatore");
+    await expect.poll(roleInDb, { timeout: 30_000 }).toBe("operatore");
 
     await row.locator('select[name="role"]').selectOption("cliente");
     await row.getByRole("button", { name: "Applica" }).click();
+    await expect.poll(roleInDb, { timeout: 30_000 }).toBe("cliente");
     await expect(row.getByRole("status")).toHaveText("Ruolo aggiornato.");
-    expect((await api.from("profiles").select("role").eq("id", state.customerId).single()).data?.role).toBe("cliente");
 
-    // Invito con email non valida: nessun invio (il browser lo blocca; il server lo rifiuterebbe comunque)
     await page.close();
   });
 
