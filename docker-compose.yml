@@ -14,9 +14,11 @@ services:
       default:
         aliases: [pf-web]
     ports:
-      - "3000:3000"
+      # PF_PORT permette di avviare piu copie (es. worktree) senza conflitti di porta
+      - "${PF_PORT:-3000}:3000"
     env_file:
-      - path: .env.local
+      # PF_ENV_FILE permette di usare il .env.local del repo principale da un worktree
+      - path: ${PF_ENV_FILE:-.env.local}
         required: false
     environment:
       WATCHPACK_POLLING: "true"
