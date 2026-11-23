@@ -148,3 +148,138 @@ docker compose run --rm --no-deps app node scripts/seed-content.mjs
 ```
 
 Lo script è idempotente: non sovrascrive i testi già modificati dal pannello admin.
+
+## Modulo lista d'interesse e accesso clienti (F1.6 e F1.7)
+
+Pagine: `/[locale]/lista-interesse` (modulo), `/[locale]/lista-interesse/conferma`, `/[locale]/accedi`
+(magic link), `/[locale]/area-clienti` (le proprie richieste). Rotte senza prefisso lingua:
+`/auth/confirm` (conferma del link nell'email) e `/auth/logout` (solo POST).
+
+### Come funziona l'invio del modulo
+
+1. Il visitatore compila il modulo. Se la pagina `lista-interesse` non è `attiva` risponde 404.
+   `site_settings.quote_mode` decide titoli e tipo salvato: `false` = `interesse`, `true` = `preventivo`.
+2. I campi extra arrivano dalla `form_schema` della linea scelta (tipi `text`, `number`, `select`,
+   `boolean`, `date`). Il server li ricontrolla: chiavi sconosciute scartate, opzioni non ammesse rifiutate.
+3. Controlli anti-spam, in quest'ordine: campo trappola (honeypot), limite per IP (5/ora),
+   Cloudflare Turnstile, limite per email (3/giorno). Su Upstash finiscono solo hash SHA-256, non IP né email.
+4. Con la chiave segreta il server cerca l'utente per email (funzione SQL `get_user_id_by_email`,
+   eseguibile solo da `service_role`); se non c'è lo crea. Il trigger crea il profilo. Poi salva la
+   richiesta con consenso privacy (data e versione del documento) e `source` (campo `?fonte=`).
+5. Parte il magic link (`signInWithOtp`, `shouldCreateUser: false`) e il visitatore va alla pagina di conferma.
+   **La risposta è sempre uguale** per email nuova, già registrata o oltre il limite: nessuno può scoprire
+   quali email hanno un account.
+
+Parametri dell'indirizzo: `?fonte=<codice>` (solo `a-z 0-9 -`, 1-80 caratteri, altrimenti ignorato) e
+`?linea=<slug>` (preseleziona la linea, ignorato se non è tra quelle attive).
+
+### Variabili d'ambiente del modulo
+
+| Variabile | Dove | Note |
+|-----------|------|------|
+| `SUPABASE_SECRET_KEY` | `.env.local`; in produzione segreto del Worker | Solo server. Mai `NEXT_PUBLIC_*`. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | `.env.local`; variabile di GitHub Actions (build) | Pubblica. Fissata nel codice **alla build**. |
+| `TURNSTILE_SECRET_KEY` | `.env.local`; segreto del Worker | Solo server. |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | `.env.local`; segreti del Worker | Valori tra virgolette accettati. |
+
+Comportamento se mancano:
+- **Sviluppo** (`next dev`): Turnstile usa le chiavi di test ufficiali Cloudflare (sempre superato) e il
+  rate limit si disattiva con un avviso nel log.
+- **Produzione**: senza chiavi Turnstile o senza Redis l'invio **fallisce con errore esplicito**. Non passa mai in silenzio.
+
+Segreti del Worker: `npx wrangler secret put SUPABASE_SECRET_KEY` (idem per gli altri) dentro il container.
+
+### Impostazioni da cambiare a mano nel pannello Supabase
+
+Il progetto Supabase non si modifica da codice per queste voci. Vanno fatte una volta (e ripetute su un
+eventuale secondo progetto). Percorsi del pannello: <https://supabase.com/dashboard/project/wxksoylsvpbkwjfbbvzf>.
+
+**1. Authentication > URL Configuration**
+- **Site URL**: l'indirizzo pubblico del sito (finché non c'è il dominio, quello `workers.dev` del Worker).
+  Il link nell'email parte da qui.
+- **Redirect URLs**: aggiungi `https://<dominio>/**` e, per lo sviluppo, `http://localhost:3000/**` e
+  `http://localhost:3012/**`. Se l'indirizzo non è in elenco Supabase lo ignora e usa il Site URL
+  (il link funziona lo stesso, ma si perde la lingua e si finisce sempre su `/it`).
+
+**2. Authentication > Emails > Templates: modello "Magic Link"** (e, per sicurezza, "Confirm signup")
+
+Sostituisci `{{ .ConfirmationURL }}` con:
+
+```
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&redirect_to={{ .RedirectTo }}
+```
+
+Esempio di corpo completo (bilingue, il modello è unico per tutto il progetto):
+
+```html
+<h2>Accedi a Primefactory / Sign in to Primefactory</h2>
+<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&redirect_to={{ .RedirectTo }}">Accedi all'area clienti / Open the client area</a></p>
+<p>Se non hai chiesto tu questo link, ignora l'email. / If you did not request this link, ignore this email.</p>
+```
+
+Perché così: il flusso classico (PKCE, `?code=`) funziona solo nel browser che ha chiesto il link, perché il
+"code verifier" sta lì. Con `token_hash` la conferma avviene sul server e il link si può aprire **anche da un
+altro dispositivo** (tipico: richiesta dal PC, email letta dal telefono). È il flusso consigliato dalla
+documentazione Supabase per le app con rendering lato server. Il link vale **una volta sola**.
+
+**3. Authentication > Sign In / Providers > Email**
+- Consigliato: **disattiva "Allow new users to sign up"**. Gli account li crea solo il server con la chiave
+  segreta; così nessuno può registrarsi da solo chiamando l'API con la chiave pubblicabile.
+  Il magic link per account esistenti continua a funzionare. Dopo la modifica riprova il flusso (invio modulo, link, accesso).
+
+**4. Authentication > SMTP Settings**
+- Il servizio email di prova di Supabase invia pochissime email l'ora e solo ai membri dell'organizzazione.
+  Prima del lancio serve un SMTP personalizzato (Resend, già in lista) con il dominio verificato. Senza,
+  i clienti **non ricevono** il magic link (la richiesta viene salvata comunque).
+
+**5. Authentication > Rate Limits** (facoltativo): controlla "Rate limit for sending emails" in base al
+piano SMTP scelto.
+
+### Primo admin (Q37)
+
+Il ruolo `admin` si assegna solo con la chiave segreta: la RLS impedisce a chiunque di cambiare il proprio.
+Dopo che il fondatore ha un account (invia il modulo con la sua email, oppure Supabase > Authentication >
+Users > Add user):
+
+```bash
+# simulazione: mostra cosa farebbe, non modifica nulla
+docker compose run --rm --no-deps app node scripts/promote-admin.mjs fondatore@esempio.it
+# applica davvero
+docker compose run --rm --no-deps app node scripts/promote-admin.mjs fondatore@esempio.it --yes
+```
+
+Lo script non crea utenti e cambia solo `profiles.role`. Il ruolo si legge dal database a ogni richiesta
+(mai dai metadata dell'utente, che il client può modificare), quindi vale subito.
+
+### Helper di autenticazione (`src/lib/auth/`)
+
+`getCurrentUser()`, `getCurrentProfile()`, `requireUser(locale)` (senza sessione porta a `/accedi`) e
+`requireRole('admin' | 'operatore', locale)` (ruolo insufficiente: 403 con `forbidden()`; `operatore`
+è consentito anche agli admin). Usano `getClaims()`, che verifica la firma del token.
+
+### Test del modulo
+
+```bash
+docker compose run --rm app npx vitest run                    # unitari (validatori, zod, Turnstile, rate limit, logica di invio)
+docker compose --profile e2e run --rm -e E2E_WITH_SUPABASE=1 e2e   # e2e completi, con il database reale
+```
+
+Senza `E2E_WITH_SUPABASE=1` (come in CI, dove Supabase è fittizio) i test che leggono linee e impostazioni
+dal database sono saltati. Nessun test crea utenti o richieste: gli invii di prova reali si fanno a mano e si
+cancellano con `auth.admin.deleteUser` (la cancellazione dell'utente elimina a cascata profilo e richieste).
+
+### Note e limiti noti
+
+- **Proxy**: il `matcher` di `src/proxy.ts` aveva `\.` in una stringa JS normale, che diventa `.` e faceva
+  girare il proxy solo su `/`: niente redirect di lingua e niente refresh della sessione sulle altre rotte.
+  Ora è `\\.` e le rotte `/auth/*` sono escluse di proposito (restano fuori da next-intl).
+- **Chi usa l'email di un altro**: il modulo non può provare che l'email sia di chi scrive. Chi inserisce
+  l'email altrui può aggiungere richieste (max 3 al giorno per email) all'area clienti di quella persona, ma non
+  può leggerla né accedere: serve il link nella casella di posta. Per un account già esistente nome e telefono
+  non vengono modificati.
+- **Scanner dei link email**: alcuni antivirus aprono i link prima dell'utente e consumano il token
+  monouso. Se succede ai clienti, il rimedio è una pagina intermedia con un pulsante "Accedi" (POST).
+- **Tempi di risposta**: creare un utente nuovo richiede un po' più di tempo che riusarne uno esistente.
+  Con più tentativi ravvicinati qualcuno potrebbe dedurlo; il rate limit lo rende poco praticabile.
+- `next.config.ts`: `allowedDevOrigins: ["pf-web"]` serve ai test Playwright nel container (senza, Next blocca
+  gli script di sviluppo e la pagina non si idrata); `experimental.authInterrupts` abilita `forbidden()`.
