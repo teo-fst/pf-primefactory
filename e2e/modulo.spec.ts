@@ -137,3 +137,26 @@ test.describe("accesso e area clienti (senza database)", () => {
     await expect(page).toHaveURL(/\/it\/accedi\?errore=link$/);
   });
 });
+
+// Il matcher del proxy aveva un escape perso (".*\..*" in una stringa JS diventa ".*..*") e il proxy
+// girava solo su "/": nessun redirect di lingua sulle altre rotte, nessun refresh della sessione.
+test.describe("proxy: redirect di lingua e rotte /auth", () => {
+  test("/lista-interesse senza lingua viene reindirizzato a /it/lista-interesse", async ({ request }) => {
+    const res = await request.get("/lista-interesse", { maxRedirects: 0 });
+    expect([307, 308]).toContain(res.status());
+    expect(new URL(res.headers().location, "http://x").pathname).toBe("/it/lista-interesse");
+  });
+
+  test("senza lingua nell'indirizzo si rispetta Accept-Language", async ({ request }) => {
+    const res = await request.get("/lista-interesse", { maxRedirects: 0, headers: { "accept-language": "en" } });
+    expect([307, 308]).toContain(res.status());
+    expect(new URL(res.headers().location, "http://x").pathname).toBe("/en/lista-interesse");
+  });
+
+  test("/auth/confirm non riceve il prefisso lingua dal proxy", async ({ request }) => {
+    const res = await request.get("/auth/confirm", { maxRedirects: 0 });
+    expect(res.status()).toBe(303);
+    // Se il proxy la trattasse come pagina, finirebbe su /it/auth/confirm (404)
+    expect(new URL(res.headers().location, "http://x").pathname).toBe("/it/accedi");
+  });
+});
