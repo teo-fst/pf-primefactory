@@ -1,0 +1,15 @@
+# Configurazione gitleaks (letta in automatico da gitleaks-action e dalla riga di comando).
+# Parte dalle regole predefinite e aggiunge UNA eccezione mirata.
+
+[extend]
+useDefault = true
+
+# Falso positivo noto: la chiave pubblicabile di Supabase (prefisso sb_publishable_) e pubblica per
+# progettazione: finisce in ogni pagina del sito come NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY e la sicurezza
+# dei dati e affidata alla Row Level Security, non alla segretezza di questa chiave. Una versione precedente
+# di .github/workflows/ci.yml la conteneva e la regola generic-api-key la segnalava, tenendo rosso il job
+# gitleaks senza un rischio reale. L'eccezione riguarda SOLO il formato sb_publishable_*: la chiave segreta
+# (sb_secret_*), il vecchio service_role e qualsiasi altro token continuano a essere segnalati.
+[allowlist]
+description = "Chiavi pubblicabili Supabase (sb_publishable_*), pubbliche per progettazione"
+regexes = ['''sb_publishable_[A-Za-z0-9_-]{20,}''']

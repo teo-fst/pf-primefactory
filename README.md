@@ -281,5 +281,10 @@ cancellano con `auth.admin.deleteUser` (la cancellazione dell'utente elimina a c
   monouso. Se succede ai clienti, il rimedio è una pagina intermedia con un pulsante "Accedi" (POST).
 - **Tempi di risposta**: creare un utente nuovo richiede un po' più di tempo che riusarne uno esistente.
   Con più tentativi ravvicinati qualcuno potrebbe dedurlo; il rate limit lo rende poco praticabile.
+- **gitleaks**: una versione vecchia di `ci.yml` conteneva la chiave pubblicabile di Supabase
+  (`sb_publishable_*`) e il job gitleaks restava rosso. Quella chiave è pubblica per progettazione (finisce in
+  ogni pagina del sito), quindi `.gitleaks.toml` la esclude con una regola mirata sul formato `sb_publishable_*`.
+  La chiave segreta (`sb_secret_*`) e ogni altro token vengono ancora segnalati. Verifica in container:
+  `docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest git /repo`.
 - `next.config.ts`: `allowedDevOrigins: ["pf-web"]` serve ai test Playwright nel container (senza, Next blocca
   gli script di sviluppo e la pagina non si idrata); `experimental.authInterrupts` abilita `forbidden()`.
