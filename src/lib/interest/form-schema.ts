@@ -23,8 +23,8 @@ export type DetailsResult =
   | { ok: false; errors: Record<string, DetailError> };
 
 // Deve iniziare con una lettera: esclude chiavi come __proto__.
-const KEY_RE = /^[a-z][a-z0-9_]{0,39}$/;
-const OPTION_VALUE_RE = /^[a-z0-9_.-]{1,60}$/i;
+export const KEY_RE = /^[a-z][a-z0-9_]{0,39}$/;
+export const OPTION_VALUE_RE = /^[a-z0-9_.-]{1,60}$/i;
 const NUMBER_RE = /^-?\d{1,12}(\.\d{1,6})?$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export const MAX_FIELDS = 30;
