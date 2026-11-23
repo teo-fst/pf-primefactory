@@ -28,7 +28,7 @@ export default async function InterestConfirmPage({ params }: Props) {
   const m = messages.interestForm as unknown as InterestFormMessages;
 
   return (
-    <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10">
+    <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-10">
       <h1 className="text-3xl font-semibold tracking-tight">{m.confirmTitle}</h1>
       <p role="status" className="mt-4 text-lg text-zinc-800">
         {texts["interest.success"] ?? m.confirmSuccess}
@@ -39,6 +39,6 @@ export default async function InterestConfirmPage({ params }: Props) {
           {m.confirmBack}
         </Link>
       </p>
-    </main>
+    </div>
   );
 }

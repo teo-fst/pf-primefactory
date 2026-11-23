@@ -36,7 +36,7 @@ export default async function AccountPage({ params }: Props) {
   const pick = (it: string, en: string) => (locale === "en" ? en : it);
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
+    <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">{m.title}</h1>
@@ -99,6 +99,6 @@ export default async function AccountPage({ params }: Props) {
         </Link>
         <span>{m.comingSoon}</span>
       </p>
-    </main>
+    </div>
   );
 }

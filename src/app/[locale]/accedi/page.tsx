@@ -32,7 +32,7 @@ export default async function LoginPage({ params, searchParams }: Props) {
   const m = messages.auth as unknown as AuthMessages;
 
   return (
-    <main className="mx-auto w-full max-w-md flex-1 px-4 py-10">
+    <div className="mx-auto w-full max-w-md flex-1 px-4 py-10">
       <h1 className="text-3xl font-semibold tracking-tight">{m.loginTitle}</h1>
       <p className="mt-3 mb-8 text-zinc-700">{m.loginIntro}</p>
       <LoginForm
@@ -41,6 +41,6 @@ export default async function LoginPage({ params, searchParams }: Props) {
         messages={m}
         linkError={query.errore === "link"}
       />
-    </main>
+    </div>
   );
 }

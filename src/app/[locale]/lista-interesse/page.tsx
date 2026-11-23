@@ -40,12 +40,12 @@ export default async function InterestPage({ params, searchParams }: Props) {
 
   if (data.status === "unavailable") {
     return (
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10">
+      <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-10">
         <h1 className="text-3xl font-semibold tracking-tight">{m.titleInterest}</h1>
         <p role="alert" className="mt-4 text-zinc-700">
           {m.unavailable}
         </p>
-      </main>
+      </div>
     );
   }
 
@@ -58,7 +58,7 @@ export default async function InterestPage({ params, searchParams }: Props) {
   const intro = data.quoteMode ? m.introQuote : (data.texts["interest.intro"] ?? m.introInterest);
 
   return (
-    <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10">
+    <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-10">
       <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
       <p className="mt-3 mb-8 text-zinc-700">{intro}</p>
       <InterestForm
@@ -70,6 +70,6 @@ export default async function InterestPage({ params, searchParams }: Props) {
         turnstileSiteKey={getTurnstileSiteKey()}
         messages={m}
       />
-    </main>
+    </div>
   );
 }

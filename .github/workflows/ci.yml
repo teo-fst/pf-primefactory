@@ -9,9 +9,9 @@ permissions:
   contents: read
 
 env:
-  # Valori fittizi: servono solo a far compilare l'app in CI
-  NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: fittizia-solo-per-ci
+  # Valori PUBBLICI reali (pensati per il browser, protetti da RLS). Nessuna chiave segreta in CI.
+  NEXT_PUBLIC_SUPABASE_URL: https://wxksoylsvpbkwjfbbvzf.supabase.co
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_gE6ADWiZWeFaECattpC2pg_9q_idzVC
 
 jobs:
   qualita:
@@ -39,6 +39,9 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Stessa versione usata nei test locali: la sintassi [[allowlists]] di .gitleaks.toml
+          # non è supportata dalla 8.24.3 predefinita dell action.
+          GITLEAKS_VERSION: 8.30.1
 
   e2e:
     name: Playwright smoke
