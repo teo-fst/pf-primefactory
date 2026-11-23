@@ -1,0 +1,43 @@
+# Segreti: qualsiasi cartella "segreti" a qualsiasi livello
+**/segreti/
+segreti/
+
+# File di ambiente con token
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+id_ecdsa*
+!id_*.pub
+
+# Claude locale
+.claude/settings.local.json
+
+# Build e dipendenze
+node_modules/
+.next/
+.vercel/
+dist/
+
+# Documenti privati (repo pubblico)
+intervista.md
+
+# Next.js / test / tooling
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+npm-debug.log*
+.open-next/
+.wrangler/
+playwright-report/
+test-results/
+.dev.vars
+
+# Tipi generati da wrangler (npm run cf-typegen)
+cloudflare-env.d.ts

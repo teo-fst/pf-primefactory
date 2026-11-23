@@ -1,0 +1,118 @@
+{
+  "home.hero.title": {
+    "it": "Pezzi su misura, modellati e stampati in Liguria",
+    "en": "Made-to-measure parts, modelled and printed in Liguria"
+  },
+  "home.hero.subtitle": {
+    "it": "Accessori per moto da pista e d'epoca, parti per bici ed e-bike, progettazione CAD e gioielli su commissione in microfusione. Stiamo avviando l'attività in provincia di Imperia.",
+    "en": "Accessories for track and classic motorcycles, bicycle and e-bike parts, CAD design and made-to-order cast jewellery. We are setting up the business in the province of Imperia."
+  },
+  "home.hero.cta": {
+    "it": "Entra nella lista d'interesse",
+    "en": "Join the interest list"
+  },
+  "home.lines.title": {
+    "it": "Linee di attività",
+    "en": "What we make"
+  },
+  "home.lines.intro": {
+    "it": "Quattro linee. Ogni linea viene pubblicata quando il servizio è pronto.",
+    "en": "Four lines. Each one goes live when its service is ready."
+  },
+  "home.method.title": {
+    "it": "Come funziona",
+    "en": "How it works"
+  },
+  "home.method.step1": {
+    "it": "Richiesta. Compili il modulo con la linea, una descrizione del pezzo e le misure, se le hai.",
+    "en": "Request. Fill in the form with the line, a description of the part and measurements, if you have them."
+  },
+  "home.method.step2": {
+    "it": "File e misure. Dopo la richiesta ti inviamo il link all'area clienti, dove carichi modelli, foto e misure.",
+    "en": "Files and measurements. After your request we send a link to the client area, where you upload models, photos and measurements."
+  },
+  "home.method.step3": {
+    "it": "Valutazione. Controlliamo fattibilità, materiali e tempi, poi ti rispondiamo.",
+    "en": "Review. We check feasibility, materials and lead time, then reply to you."
+  },
+  "home.method.step4": {
+    "it": "Produzione. Stampa, microfusione o finitura. Ogni pezzo ha un codice lotto.",
+    "en": "Production. Printing, lost-wax casting or finishing. Every part gets a batch code."
+  },
+  "home.events.title": {
+    "it": "Eventi",
+    "en": "Events"
+  },
+  "home.events.intro": {
+    "it": "Siamo previsti a trackday, motoraduni e fiere. Le date compaiono in questa pagina.",
+    "en": "We plan to attend trackdays, motorcycle rallies and trade fairs. Dates will appear on this page."
+  },
+  "home.prelaunch.notice": {
+    "it": "Sito in pre-lancio. Non vendiamo ancora e non ci sono prezzi. Lascia i tuoi dati nella lista d'interesse, senza impegno. I preventivi arriveranno con l'apertura della società.",
+    "en": "Pre-launch. We are not selling yet and there are no prices. Join the interest list, with no commitment. Quotes start when the company opens."
+  },
+  "lines.moto-bici.body": {
+    "it": "Ricambi per moto d'epoca, accessori custom, parti per moto da pista, carene e maschere di montaggio. Anche parti per bici ed e-bike.\n\nPer la pista stampiamo in materiali tecnici come nylon caricato, con tolleranze strette e finiture a richiesta. Ogni pezzo da pista riporta la dicitura 'solo uso pista' e un codice lotto.\n\nPrototipi per aziende e maschere di montaggio su misura: il pezzo nasce dal tuo disegno o dalla scansione dell'originale.",
+    "en": "Spare parts for classic motorcycles, custom accessories, track motorcycle parts, fairings and fitting jigs. Also parts for bicycles and e-bikes.\n\nFor track use we print in technical materials such as filled nylon, with tight tolerances and finishes on request. Every track part is marked 'track use only' and carries a batch code.\n\nPrototypes for companies and made-to-measure fitting jigs. The part starts from your drawing or from a scan of the original."
+  },
+  "lines.progettazione.body": {
+    "it": "Progettazione CAD per conto terzi: disegno del pezzo, con consegna del modello o stampa. Scansione 3D e reverse engineering di parti esistenti.\n\nLavoriamo con Fusion 360 e stampiamo in FDM e resina. Il modello resta tuo; può essere riutilizzato da noi solo con il tuo consenso scritto.\n\nHai un pezzo da copiare o riparare? Possiamo scansionarlo e ricostruirne il modello.",
+    "en": "CAD design for clients: part design, delivered as a model file or printed. 3D scanning and reverse engineering of existing parts.\n\nWe work in Fusion 360 and print in FDM and resin. The model stays yours. We reuse it for other work only with your written consent.\n\nNeed a part copied or repaired? We can scan it and rebuild the model."
+  },
+  "lines.gioielleria.body": {
+    "it": "Gioielli su commissione in microfusione a cera persa, con colata sottovuoto. Metalli: argento, oro, bronzo e ottone.\n\nModelliamo il pezzo in 3D e lo stampiamo in resina calcinabile. Poi lo fondiamo nel metallo scelto. Puoi scegliere misura, metallo e finitura.\n\nPrima della prima vendita di oro e argento completiamo le pratiche previste per i metalli preziosi.",
+    "en": "Made-to-order jewellery in lost-wax casting, with vacuum casting. Metals: silver, gold, bronze and brass.\n\nWe model the piece in 3D and print it in burnout resin. Then we cast it in the metal you choose. You choose size, metal and finish.\n\nBefore the first sale of gold or silver we complete the registrations required for precious metals."
+  },
+  "lines.riciclo.body": {
+    "it": "Stampiamo con filamento ricavato da scarti interni di produzione. Il filamento è prodotto nel nostro laboratorio e serve per prove e stampe non tecniche.\n\nMateriali previsti: PLA, PETG, ABS, ASA, PP e TPU.\n\nQuesta linea tratta solo scarti interni. Non ritiriamo bottiglie o flaconi dai privati, e non è un servizio di raccolta.",
+    "en": "We print with filament made from our own production offcuts. The filament is made in our workshop and is used for tests and non-technical prints.\n\nPlanned materials: PLA, PETG, ABS, ASA, PP and TPU.\n\nThis line handles internal offcuts only. We do not collect bottles or containers from private individuals, and this is not a collection service."
+  },
+  "about.title": {
+    "it": "Chi siamo",
+    "en": "About us"
+  },
+  "about.body": {
+    "it": "Primefactory è una società in costituzione in provincia di Imperia. Il nome commerciale è Primefactory, abbreviato pf.\n\nLavoriamo con modellazione 3D, stampa FDM e resina, scansione e microfusione. Il lavoro parte dal disegno del pezzo e arriva alla stampa o alla fusione.\n\nIl punto forte è il contatto diretto con chi ordina: parli con chi progetta e produce il tuo pezzo.",
+    "en": "Primefactory is a company being set up in the province of Imperia. The trading name is Primefactory, shortened to pf.\n\nWe work with 3D modelling, FDM and resin printing, scanning and casting. Work starts from the drawing of the part and ends in print or cast metal.\n\nOur main strength is direct contact with the customer. You talk to the people who design and make your part."
+  },
+  "events.intro": {
+    "it": "Trackday, motoraduni e fiere: qui pubblichiamo date e luoghi in cui saremo presenti.",
+    "en": "Trackdays, motorcycle rallies and trade fairs. We publish the dates and places where we will be."
+  },
+  "events.empty": {
+    "it": "Nessun evento in programma al momento. Le date appariranno qui.",
+    "en": "No events scheduled at the moment. Dates will appear here."
+  },
+  "interest.title": {
+    "it": "Lista d'interesse",
+    "en": "Interest list"
+  },
+  "interest.intro": {
+    "it": "Descrivi il pezzo che ti serve e lascia i tuoi dati. Non è un ordine e non hai alcun impegno. Ti rispondiamo per approfondire la richiesta.",
+    "en": "Describe the part you need and leave your details. This is not an order and you have no commitment. We reply to discuss your request."
+  },
+  "interest.success": {
+    "it": "Richiesta ricevuta. Ti scriviamo via email per confermare.",
+    "en": "Request received. We will email you to confirm."
+  },
+  "interest.files.note": {
+    "it": "Non serve caricare file ora. Dopo il primo contatto ti inviamo il link all'area clienti per caricare modelli, foto e misure.",
+    "en": "You do not need to upload files now. After first contact we send you a link to the client area, where you can upload models, photos and measurements."
+  },
+  "portfolio.intro": {
+    "it": "Lavori selezionati. Pubblichiamo solo foto per cui abbiamo i diritti.",
+    "en": "Selected work. We only publish photos we have the rights to."
+  },
+  "portfolio.empty": {
+    "it": "Il portfolio è in preparazione. Le prime foto arriveranno con il lancio.",
+    "en": "The portfolio is being prepared. The first photos will be added at launch."
+  },
+  "footer.tagline": {
+    "it": "Primefactory (pf). Modellazione e stampa 3D in provincia di Imperia.",
+    "en": "Primefactory (pf). 3D modelling and printing in the province of Imperia."
+  },
+  "footer.prelaunch": {
+    "it": "Sito in pre-lancio. Nessuna vendita online.",
+    "en": "Pre-launch site. No online sales."
+  }
+}
