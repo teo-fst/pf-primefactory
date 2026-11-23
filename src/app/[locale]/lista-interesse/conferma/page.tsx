@@ -13,6 +13,9 @@ type Props = { params: Promise<{ locale: string }> };
 // non deve mai rivelare se l'indirizzo era già noto. Non va indicizzata.
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
+// I testi vengono da site_texts (modificabili dal pannello): letti a ogni richiesta, non fissati alla build.
+export const dynamic = "force-dynamic";
+
 export default async function InterestConfirmPage({ params }: Props) {
   const { locale } = await params;
   if (!hasLocale(routing.locales, locale)) notFound();

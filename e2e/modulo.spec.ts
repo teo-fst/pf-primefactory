@@ -154,7 +154,12 @@ test.describe("proxy: redirect di lingua e rotte /auth", () => {
   });
 
   test("/auth/confirm non riceve il prefisso lingua dal proxy", async ({ request }) => {
-    const res = await request.get("/auth/confirm", { maxRedirects: 0 });
+    // Al primo accesso il server di sviluppo (Turbopack) compila la rotta e a volte risponde 500
+    // se altri test compilano in parallelo ("Unexpected end of JSON input" dal manifest): si riprova.
+    let res = await request.get("/auth/confirm", { maxRedirects: 0 });
+    for (let attempt = 0; attempt < 3 && res.status() === 500; attempt++) {
+      res = await request.get("/auth/confirm", { maxRedirects: 0 });
+    }
     expect(res.status()).toBe(303);
     // Se il proxy la trattasse come pagina, finirebbe su /it/auth/confirm (404)
     expect(new URL(res.headers().location, "http://x").pathname).toBe("/it/accedi");
