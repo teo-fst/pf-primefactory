@@ -208,7 +208,13 @@ begin
     res := res || 'T30 A non registra file sulla richiesta di B=false; ';
   exception when insufficient_privilege then res := res || 'T30 A non registra file sulla richiesta di B=true; '; end;
   select count(*) into n from public.request_files where request_id = rb; res := res || 'T31 A non vede file di B=' || (n=0) || '; ';
+  begin insert into public.request_files (request_id, storage_path, original_name, size_bytes, uploaded_by, synced_at)
+    values (ra, ra::text || '/00000000-0000-4000-8000-000000000000-e.stl', 'e.stl', 10, a, now());
+    res := res || 'T32 A non imposta synced_at=false; ';
+  exception when insufficient_privilege then res := res || 'T32 A non imposta synced_at=true; '; end;
   execute 'reset role';
+  select count(*) into n from storage.buckets where id = 'request-files' and file_size_limit <= 52428800;
+  res := res || 'T33 limite bucket entro i 50 MB del piano gratuito=' || (n=1) || '; ';
 
   raise exception 'RISULTATI: %', res;
 end;
