@@ -63,3 +63,27 @@ Per ogni voce: problema, causa, soluzione, verifica. Le voci più recenti stanno
 - **Soluzione:** unione delle dipendenze e lockfile rigenerato; `.gitleaks.toml` di `main` (regola sul valore esatto, voce 7); tipi del branch login (includono `get_user_id_by_email`); import duplicato rimosso in `src/lib/supabase/server.ts`; `<main>` delle pagine login trasformati in `<div>` (il layout comune ha già `<main id="contenuto">`).
 - **Verifica:** lint, `tsc`, Vitest 111/111, build Next e OpenNext, Playwright 40/40 sul DB reale.
 - **Nota:** il pacchetto npm `cn` usato dalle componenti UI è stato controllato: è il pacchetto ufficiale di shadcn (manutentore shadcn, provenance SLSA, nessuno script di installazione).
+
+## 11. Lotto di notifiche "bloccato" solo durante la chiamata (2026-11-23)
+- **Problema:** `for update skip locked` serve a evitare che cron e invio immediato prendano le stesse righe dell'outbox, ma ogni chiamata RPC di Supabase è una transazione a sé: il blocco sparisce appena la funzione ritorna, e due processori in parallelo avrebbero consegnato gli stessi eventi due volte.
+- **Causa:** il blocco di riga dura quanto la transazione, non quanto l'invio.
+- **Soluzione:** `notify_claim_batch` "affitta" le righe (lease): conta il tentativo e sposta `next_attempt_at` di 5 minuti; la riga torna disponibile da sola se il processore muore. Esito e ritentativi si scrivono con `notify_mark_done` / `notify_mark_failed`.
+- **Verifica:** `rls_smoke.sql` N27-N30 (il secondo prelievo immediato non restituisce nulla, `processed_at` e `last_error` corretti); prova reale via `wrangler dev` (200, `claimed: 0`).
+
+## 12. Email doppie nei ritentativi (2026-11-23)
+- **Problema:** un evento ha più consegne (cliente, ciascun admin, Telegram). Se una falliva dopo che le altre erano partite, il ritentativo le avrebbe rimandate tutte.
+- **Causa:** l'esito era per evento, non per consegna.
+- **Soluzione:** colonna `delivered` nell'outbox con un gettone per consegna (`customer_email`, `admin_email:<id>`, `telegram`); il ritentativo rifà solo ciò che manca. Resend riceve anche `Idempotency-Key` per evento e destinatario.
+- **Verifica:** Vitest `processor.test.ts` (Telegram fallisce, il secondo passaggio non rimanda le email; un admin fallisce, gli altri ricevono e si riprova solo quello).
+
+## 13. Avvisi "file caricato" a raffica (2026-11-23)
+- **Problema:** il cliente carica dieci file e i soci riceverebbero dieci email e dieci messaggi Telegram.
+- **Causa:** il trigger sui file genera un evento per riga.
+- **Soluzione:** se per la stessa richiesta c'è già un evento `file_uploaded` non ancora preso dal processore (`attempts = 0`), il trigger aumenta `payload.file_count` invece di crearne un altro. I file di admin e operatore non generano eventi.
+- **Verifica:** `rls_smoke.sql` N7 e integrazione con Supabase reale (due file, un evento con `file_count` 2).
+
+## 14. Test sul database condiviso che consumano eventi altrui (2026-11-23)
+- **Problema:** durante i test con un'altra sessione attiva, l'invio immediato e il processore prendevano gli eventi dell'outbox creati dai test dell'altra sessione (e consumavano il lotto da 5, lasciando in attesa l'evento del test).
+- **Causa:** il prelievo non filtra per richiesta: il database di sviluppo è unico e condiviso.
+- **Soluzione:** l'integrazione usa il prelievo vero solo se non ci sono eventi altrui in coda; altrimenti prende direttamente le righe della propria richiesta. Per le prove a mano con chiavi finte si lancia il server con un database dedicato o a coda vuota.
+- **Verifica:** integrazione 5/5 (1 saltato: invio reale non richiesto); prova dell'invio immediato con Resend finto: gli eventi risultano ritentati (`attempts = 1`, `last_error = resend_401`).
