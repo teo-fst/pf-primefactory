@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import type { Database } from "./database.types";
+import { cookies } from "next/headers";
 
 // Client per Server Components, Server Actions e Route Handler.
 // Crealo dentro ogni funzione: non tenerlo in una variabile globale.

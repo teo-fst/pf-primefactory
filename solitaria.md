@@ -50,3 +50,16 @@ Per ogni voce: problema, causa, soluzione, verifica. Le voci più recenti stanno
 - **Causa:** `gitleaks-action@v2` installa di default gitleaks 8.24.3, che non applica la sintassi `[[allowlists]]` di `.gitleaks.toml`; i test locali usavano la 8.30.1.
 - **Soluzione:** `GITLEAKS_VERSION: 8.30.1` nel job Gitleaks di `.github/workflows/ci.yml`, così CI e test locali usano la stessa versione.
 - **Verifica:** job Gitleaks verde sulla PR #3 (vedi esito CI del commit che introduce questa voce).
+
+## 9. Proxy attivo solo sulla home (2026-11-23)
+- **Problema:** redirect di lingua e aggiornamento della sessione Supabase non avvenivano fuori da `/` (es. `/portfolio` senza lingua dava 404).
+- **Causa:** in `src/proxy.ts` il `matcher` conteneva `\.` in una stringa JS normale, che diventa `.`: la regex corrispondeva solo a `/`.
+- **Soluzione:** `\.` nel matcher; rotte `auth/*` escluse dal routing per lingua (percorso fisso richiesto dal template email).
+- **Verifica:** test Playwright: `/lista-interesse` → 307 su `/it/lista-interesse`, con `Accept-Language: en` → `/en/...`, `/auth/confirm` non prefissato.
+
+## 10. Integrazione dei blocchi sito pubblico e login (2026-11-23)
+- **Problema:** dopo il merge di `main` nel branch del login: conflitti in `package.json`, lockfile, `.gitleaks.toml`, tipi Supabase; errore TypeScript "Duplicate identifier 'Database'"; `<main>` annidati.
+- **Causa:** i due agenti hanno lavorato in parallelo sugli stessi file condivisi.
+- **Soluzione:** unione delle dipendenze e lockfile rigenerato; `.gitleaks.toml` di `main` (regola sul valore esatto, voce 7); tipi del branch login (includono `get_user_id_by_email`); import duplicato rimosso in `src/lib/supabase/server.ts`; `<main>` delle pagine login trasformati in `<div>` (il layout comune ha già `<main id="contenuto">`).
+- **Verifica:** lint, `tsc`, Vitest 111/111, build Next e OpenNext, Playwright 40/40 sul DB reale.
+- **Nota:** il pacchetto npm `cn` usato dalle componenti UI è stato controllato: è il pacchetto ufficiale di shadcn (manutentore shadcn, provenance SLSA, nessuno script di installazione).
