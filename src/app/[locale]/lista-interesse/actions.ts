@@ -1,11 +1,13 @@
 "use server";
 
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { redirect } from "@/i18n/navigation";
 import { sendMagicLink } from "@/lib/auth/magic-link";
 import { createInterestStore } from "@/lib/interest/store";
 import { isFormLocale } from "@/lib/interest/schema";
 import { processInterest } from "@/lib/interest/submit";
+import { kickNotifications } from "@/lib/notify";
 import { checkAbuse } from "@/lib/security/anti-abuse";
 import { getClientIp } from "@/lib/security/client-ip";
 import type { InterestFormState } from "./state";
@@ -35,6 +37,8 @@ export async function submitInterest(
   });
 
   if (outcome.status === "ok") {
+    // Consegna subito le notifiche della nuova richiesta, senza far attendere il visitatore (il cron raccoglie il resto).
+    after(kickNotifications);
     // Stessa pagina per email nuova, già registrata o oltre il limite: nessuna enumerazione.
     redirect({ href: "/lista-interesse/conferma", locale });
   }

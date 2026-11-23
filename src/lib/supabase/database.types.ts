@@ -137,6 +137,53 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_outbox: {
+        Row: {
+          attempts: number
+          created_at: string
+          delivered: string[]
+          event_type: string
+          id: number
+          last_error: string | null
+          next_attempt_at: string
+          payload: Json
+          processed_at: string | null
+          request_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          delivered?: string[]
+          event_type: string
+          id?: never
+          last_error?: string | null
+          next_attempt_at?: string
+          payload?: Json
+          processed_at?: string | null
+          request_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          delivered?: string[]
+          event_type?: string
+          id?: never
+          last_error?: string | null
+          next_attempt_at?: string
+          payload?: Json
+          processed_at?: string | null
+          request_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_outbox_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -615,6 +662,23 @@ export type Database = {
     }
     Functions: {
       get_user_id_by_email: { Args: { p_email: string }; Returns: string }
+      notify_claim_batch: {
+        Args: { p_limit?: number }
+        Returns: Database["public"]["Tables"]["notification_outbox"]["Row"][]
+      }
+      notify_mark_done: {
+        Args: { p_delivered: string[]; p_id: number }
+        Returns: undefined
+      }
+      notify_mark_failed: {
+        Args: {
+          p_delivered: string[]
+          p_error: string
+          p_id: number
+          p_next_attempt_at: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "operatore" | "cliente"

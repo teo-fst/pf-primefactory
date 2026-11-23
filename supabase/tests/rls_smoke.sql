@@ -82,6 +82,111 @@ begin
   res := res || 'T27 email inesistente = null=' || (public.get_user_id_by_email('nessuno@example.invalid') is null);
   execute 'reset role';
 
+  -- Notifiche (F1.10): l'outbox è solo del service_role e i trigger generano gli eventi giusti.
+  -- Tutte le etichette sono N<numero>; stato corrente dei dati di prova: ra (cliente A) è in_valutazione,
+  -- rb (cliente B) è richiesta; adm è l'unico admin.
+  declare
+    ob bigint;
+    m boolean;
+  begin
+    res := res || '; ';
+
+    -- Eventi generati dai dati di prova (si legge come postgres: l'outbox non è leggibile dai ruoli API)
+    select count(*) into n from public.notification_outbox where request_id in (ra, rb) and event_type = 'request_created';
+    res := res || 'N1 ogni richiesta nuova genera un evento=' || (n=2) || '; ';
+    select count(*) into n from public.notification_outbox where request_id = ra and event_type = 'message_from_admin';
+    res := res || 'N2 messaggio admin non interno -> 1 evento (la nota interna nessuno)=' || (n=1) || '; ';
+    select count(*) into n from public.notification_outbox where request_id = ra and event_type = 'message_from_customer';
+    res := res || 'N3 messaggio del cliente -> 1 evento=' || (n=1) || '; ';
+    select count(*) into n from public.notification_outbox where request_id = ra and event_type = 'status_changed';
+    res := res || 'N4 cambio stato con notify_client -> 1 evento=' || (n=1) || '; ';
+    -- controllo_qualita ha notify_client=false: nessun evento; pronto ha notify_client=true: un evento
+    update public.requests set status = 'controllo_qualita' where id = rb;
+    select count(*) into n from public.notification_outbox where request_id = rb and event_type = 'status_changed';
+    res := res || 'N5 stato senza notify_client -> nessun evento=' || (n=0) || '; ';
+    update public.requests set status = 'pronto' where id = rb;
+    select count(*) into n from public.notification_outbox where request_id = rb and event_type = 'status_changed';
+    res := res || 'N6 stato con notify_client -> 1 evento=' || (n=1) || '; ';
+    -- file: due caricamenti del cliente di fila = un solo evento con file_count 2; un file dell'admin nessun evento
+    insert into public.request_files (request_id, storage_path, original_name, size_bytes, uploaded_by)
+      values (ra, ra::text || '/n-test-1.stl', 'n-test-1.stl', 10, a), (ra, ra::text || '/n-test-2.stl', 'n-test-2.stl', 10, a);
+    insert into public.request_files (request_id, storage_path, original_name, size_bytes, uploaded_by)
+      values (ra, ra::text || '/n-test-3.stl', 'n-test-3.stl', 10, adm);
+    select count(*) into n from public.notification_outbox where request_id = ra and event_type = 'file_uploaded' and (payload ->> 'file_count')::int = 2;
+    res := res || 'N7 file del cliente raggruppati in 1 evento (file dell''admin ignorato)=' || (n=1) || '; ';
+    -- dati minimi: nel payload niente testi, email o nomi di file
+    select count(*) into n from public.notification_outbox
+      where request_id in (ra, rb) and payload::text ~* '(targa|argento|ciao|pubblico|nota interna|@|n-test|\.stl)';
+    res := res || 'N8 payload senza dati personali=' || (n=0) || '; ';
+    -- notifiche in-app: una per ogni admin e per evento verso i soci; mai al cliente
+    select count(*) into n from public.notifications where user_id = adm;
+    res := res || 'N9 notifiche in-app all''admin (2 richieste, 1 messaggio, 1 file)=' || (n=4) || '; ';
+    select count(*) into n from public.notifications where user_id in (a, b);
+    res := res || 'N10 nessuna notifica in-app ai clienti=' || (n=0) || '; ';
+
+    -- RLS attiva e nessuna policy
+    select relrowsecurity into strict m from pg_class where oid = 'public.notification_outbox'::regclass;
+    res := res || 'N11 RLS attiva su notification_outbox=' || m || '; ';
+    select count(*) into n from pg_policies where schemaname = 'public' and tablename = 'notification_outbox';
+    res := res || 'N12 nessuna policy su notification_outbox=' || (n=0) || '; ';
+
+    -- anon: niente lettura, scrittura né funzioni del processore
+    execute 'set local role anon';
+    perform set_config('request.jwt.claims', '{"role":"anon"}', true);
+    begin perform count(*) from public.notification_outbox; res := res || 'N13 anon non legge l''outbox=false; ';
+    exception when insufficient_privilege then res := res || 'N13 anon non legge l''outbox=true; '; end;
+    begin insert into public.notification_outbox (event_type, payload) values ('request_created', '{}'); res := res || 'N14 anon non scrive nell''outbox=false; ';
+    exception when insufficient_privilege then res := res || 'N14 anon non scrive nell''outbox=true; '; end;
+    begin perform public.notify_claim_batch(5); res := res || 'N15 anon non chiama notify_claim_batch=false; ';
+    exception when insufficient_privilege then res := res || 'N15 anon non chiama notify_claim_batch=true; '; end;
+    begin perform public.notify_mark_done(1, '{}'); res := res || 'N16 anon non chiama notify_mark_done=false; ';
+    exception when insufficient_privilege then res := res || 'N16 anon non chiama notify_mark_done=true; '; end;
+    begin perform public.notify_mark_failed(1, 'x', now(), '{}'); res := res || 'N17 anon non chiama notify_mark_failed=false; ';
+    exception when insufficient_privilege then res := res || 'N17 anon non chiama notify_mark_failed=true; '; end;
+    execute 'reset role';
+
+    -- authenticated (cliente A e anche l'admin): stessa cosa. Le funzioni trigger non sono chiamabili da nessuno.
+    execute 'set local role authenticated';
+    perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+    begin perform count(*) from public.notification_outbox; res := res || 'N18 cliente non legge l''outbox=false; ';
+    exception when insufficient_privilege then res := res || 'N18 cliente non legge l''outbox=true; '; end;
+    begin insert into public.notification_outbox (event_type, payload) values ('request_created', '{}'); res := res || 'N19 cliente non scrive nell''outbox=false; ';
+    exception when insufficient_privilege then res := res || 'N19 cliente non scrive nell''outbox=true; '; end;
+    begin update public.notification_outbox set processed_at = now(); res := res || 'N20 cliente non aggiorna l''outbox=false; ';
+    exception when insufficient_privilege then res := res || 'N20 cliente non aggiorna l''outbox=true; '; end;
+    begin delete from public.notification_outbox; res := res || 'N21 cliente non cancella dall''outbox=false; ';
+    exception when insufficient_privilege then res := res || 'N21 cliente non cancella dall''outbox=true; '; end;
+    begin perform public.notify_claim_batch(5); res := res || 'N22 cliente non chiama notify_claim_batch=false; ';
+    exception when insufficient_privilege then res := res || 'N22 cliente non chiama notify_claim_batch=true; '; end;
+    begin perform public.notify_mark_done(1, '{}'); res := res || 'N23 cliente non chiama notify_mark_done=false; ';
+    exception when insufficient_privilege then res := res || 'N23 cliente non chiama notify_mark_done=true; '; end;
+    begin perform public.notify_mark_failed(1, 'x', now(), '{}'); res := res || 'N24 cliente non chiama notify_mark_failed=false; ';
+    exception when insufficient_privilege then res := res || 'N24 cliente non chiama notify_mark_failed=true; '; end;
+    begin perform private.notify_request_created(); res := res || 'N25 cliente non chiama le funzioni trigger=false; ';
+    exception when insufficient_privilege then res := res || 'N25 cliente non chiama le funzioni trigger=true; '; end;
+    perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
+    begin perform count(*) from public.notification_outbox; res := res || 'N26 nemmeno l''admin legge l''outbox dal client=false; ';
+    exception when insufficient_privilege then res := res || 'N26 nemmeno l''admin legge l''outbox dal client=true; '; end;
+    execute 'reset role';
+
+    -- service_role: prende il lotto (con lease), non lo riprende subito, registra esito e fallimento
+    execute 'set local role service_role';
+    perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+    select count(*) into n from public.notify_claim_batch(50) c where c.request_id in (ra, rb) and c.attempts = 1;
+    res := res || 'N27 service_role prende i 7 eventi di prova (attempts=1)=' || (n=7) || '; ';
+    select count(*) into n from public.notify_claim_batch(50) c where c.request_id in (ra, rb);
+    res := res || 'N28 il lease impedisce di riprenderli subito=' || (n=0) || '; ';
+    select o.id into ob from public.notification_outbox o where o.request_id = ra and o.event_type = 'request_created';
+    perform public.notify_mark_done(ob, array['customer_email', 'telegram']);
+    select count(*) into n from public.notification_outbox where id = ob and processed_at is not null and delivered = array['customer_email', 'telegram'] and last_error is null;
+    res := res || 'N29 notify_mark_done segna processed_at e le consegne=' || (n=1) || '; ';
+    select o.id into ob from public.notification_outbox o where o.request_id = rb and o.event_type = 'request_created';
+    perform public.notify_mark_failed(ob, 'resend_503', now() + interval '2 minutes', array['customer_email']);
+    select count(*) into n from public.notification_outbox where id = ob and processed_at is null and last_error = 'resend_503' and delivered = array['customer_email'] and next_attempt_at > now();
+    res := res || 'N30 notify_mark_failed registra errore, consegne e nuova attesa=' || (n=1) || '; ';
+    execute 'reset role';
+  end;
+
   raise exception 'RISULTATI: %', res;
 end;
 $$;

@@ -13,6 +13,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["tests/unit/**/*.test.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
+    // tests/integration usa il database reale e si attiva solo con E2E_WITH_SUPABASE=1 (altrimenti è saltato)
+    include: ["tests/unit/**/*.test.{ts,tsx}", "tests/integration/**/*.test.ts", "src/**/*.test.{ts,tsx}"],
   },
 });
