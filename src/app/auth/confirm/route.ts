@@ -13,7 +13,8 @@ import { createClient } from "@/lib/supabase/server";
 // La rotta sta fuori da [locale] (percorso fisso /auth/confirm, come nel template email).
 // Della destinazione si usa SOLO la lingua: niente redirect aperto verso indirizzi arbitrari.
 
-const OTP_TYPES: readonly EmailOtpType[] = ["email", "magiclink"];
+// "invite": link dell'invito a un nuovo admin/operatore dal pannello (F1.9, Q37).
+const OTP_TYPES: readonly EmailOtpType[] = ["email", "magiclink", "invite"];
 const TOKEN_HASH_MAX = 512;
 
 function localeFromRedirect(redirectTo: string | null) {
@@ -45,7 +46,19 @@ export async function GET(request: NextRequest) {
   if (tokenHash && tokenHash.length <= TOKEN_HASH_MAX && type && OTP_TYPES.includes(type)) {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
-    if (!error) return redirectTo(`/${locale}/area-clienti`);
+    if (!error) {
+      // Chi arriva da un invito del pannello e ha il ruolo admin atterra sul pannello, gli altri nell'area clienti.
+      // Il ruolo si legge dal database con la sessione appena creata (la RLS mostra a ciascuno il proprio profilo).
+      if (type === "invite") {
+        const { data } = await supabase.auth.getClaims();
+        const userId = typeof data?.claims.sub === "string" ? data.claims.sub : null;
+        const { data: profile } = userId
+          ? await supabase.from("profiles").select("role").eq("id", userId).maybeSingle()
+          : { data: null };
+        if (profile?.role === "admin") return redirectTo(`/${locale}/admin`);
+      }
+      return redirectTo(`/${locale}/area-clienti`);
+    }
     console.warn(`[auth/confirm] verifica non riuscita (${error.code ?? error.status ?? "errore"})`);
   }
   return redirectTo(`/${locale}/accedi?errore=link`);
