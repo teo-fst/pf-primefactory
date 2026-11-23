@@ -5,7 +5,7 @@ import { getMessages, setRequestLocale } from "next-intl/server";
 import { LoginForm, type AuthMessages } from "@/components/auth/login-form";
 import { redirect } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentProfile } from "@/lib/auth/session";
 import { getTurnstileSiteKey } from "@/lib/security/turnstile";
 
 type Props = {
@@ -25,8 +25,9 @@ export default async function LoginPage({ params, searchParams }: Props) {
   if (!hasLocale(routing.locales, locale)) notFound();
   setRequestLocale(locale);
 
-  // Chi ha già una sessione valida va direttamente all'area clienti.
-  if (await getCurrentUser()) redirect({ href: "/area-clienti", locale });
+  // Chi ha una sessione valida E un profilo va direttamente all'area clienti. Il controllo sul profilo evita
+  // un ciclo di redirect (accedi <-> area-clienti) con un token ancora valido ma account già eliminato.
+  if (await getCurrentProfile()) redirect({ href: "/area-clienti", locale });
 
   const [messages, query] = await Promise.all([getMessages({ locale }), searchParams]);
   const m = messages.auth as unknown as AuthMessages;

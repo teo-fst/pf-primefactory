@@ -94,31 +94,61 @@ Per ogni voce: problema, causa, soluzione, verifica. Le voci più recenti stanno
 - **Soluzione:** valori di prova a bassa entropia (`prova-prova-prova-prova`), nessuna eccezione in `.gitleaks.toml`. I commit locali non ancora pubblicati sono stati rifatti, così nemmeno la storia contiene più i valori.
 - **Verifica:** `gitleaks git` (storia completa, 57 commit) e `gitleaks dir` sui file tracciati con v8.30.1 e `.gitleaks.toml`: nessuna fuga; i test del bearer passano ancora (rifiutano segreto sbagliato, di un carattere in più o in meno e maiuscolo).
 
-## 16. Nel pannello i campi tornavano al valore vecchio dopo il salvataggio (2026-11-23)
+## 16. Ciclo di redirect con token valido e account eliminato (2026-11-23)
+- **Problema:** con la sessione di un account già eliminato (da un altro dispositivo, o da un test) il browser andava in `ERR_TOO_MANY_REDIRECTS` tra `/it/accedi` e `/it/area-clienti`.
+- **Causa:** `/accedi` mandava all'area clienti chiunque avesse un token valido (`getClaims()` controlla solo la firma); l'area clienti, non trovando il profilo, rimandava ad `/accedi`.
+- **Soluzione:** `/accedi` reindirizza solo se esiste anche il profilo (`getCurrentProfile()`); altrimenti mostra il modulo di accesso.
+- **Verifica:** e2e `sessione ancora valida di un account eliminato` (crea l'utente, apre una sessione, lo elimina, apre `/it/area-clienti` e ottiene `/it/accedi` con il modulo).
+
+## 17. Caricamento file che non partiva su http (2026-11-23)
+- **Problema:** nel container e2e (`http://pf-web:3000`) la scelta di un file non avviava nessun caricamento e non compariva alcun errore.
+- **Causa:** `crypto.randomUUID()` esiste solo in contesti sicuri (https o `localhost`): su http è `undefined` e lanciava un'eccezione nel gestore.
+- **Soluzione:** UUID generato con `crypto.getRandomValues` (`randomUuid()` in `src/lib/account/files.ts`); ogni file è caricato in un blocco `try/catch`, così un errore imprevisto lo segna come fallito senza lasciare il modulo bloccato.
+- **Verifica:** e2e `carica un file` (Storage, riga in `request_files`, stato `file_ricevuti`, download con URL firmato).
+
+## 18. Test e2e che cancellano gli utenti di prova degli altri (2026-11-23)
+- **Problema:** i test dell'area clienti fallivano a caso (`errore=link`, pagina senza richiesta, profilo non trovato) quando girava in parallelo l'e2e del pannello admin.
+- **Causa:** il database di sviluppo è condiviso e la pulizia iniziale dell'e2e admin elimina **tutti** gli utenti `pf-test+%`, compresi `pf-test+area@` e `pf-test+area-b@` a metà esecuzione.
+- **Soluzione:** l'e2e dell'area clienti usa il prefisso `pf-test+area` e il suo controllo dei residui conta solo quel prefisso; i test si eseguono quando non gira l'e2e admin (o si ripetono). Non si è cambiata la pulizia dell'altro blocco (fuori dal mio perimetro): conviene restringerla ai propri indirizzi (`pf-test+admin@`, `pf-test+cliente@`).
+- **Verifica:** 9/9 su due esecuzioni consecutive senza l'e2e admin attivo.
+
+## 19. Limite dei file oltre il tetto del piano gratuito (2026-11-23)
+- **Problema:** bucket `request-files` e `site_settings.max_upload_bytes` a 100 MB (Q10), ma il piano gratuito di Supabase rifiuta i file oltre 50 MB: l'utente avrebbe visto un errore generico a metà caricamento.
+- **Causa:** tetto globale per file del piano gratuito, più basso del limite del bucket.
+- **Soluzione:** migrazione `20261123074736_limiti_file_cliente`: bucket e impostazione a 52428800 byte. Il codice usa già `site_settings` per abbassare il limite, quindi l'interfaccia mostra "50 MB". Con il piano Pro basta riportare i due valori a 104857600.
+- **Verifica:** test SQL T33/T34 (bucket e impostazione a 50 MB).
+
+## 20. Campi di sistema dei file impostabili dal cliente (2026-11-23)
+- **Problema:** registrando un file, un cliente poteva valorizzare `synced_at`, `backed_up_at`, `cloud_deleted_at`, usati dal processo di copia sul server interno.
+- **Causa:** permesso di insert su tutte le colonne di `request_files` per il ruolo `authenticated`.
+- **Soluzione:** insert consentito solo su `request_id, storage_path, original_name, size_bytes, mime_type, uploaded_by` (stessa migrazione).
+- **Verifica:** T28 (registrazione normale riuscita) e T32 (insert con `synced_at` rifiutato) in `supabase/tests/rls_smoke.sql`.
+
+## 21. Nel pannello i campi tornavano al valore vecchio dopo il salvataggio (2026-11-23)
 - **Problema:** dopo «Salva stato» il menu a tendina tornava su «Richiesta ricevuta» e un secondo clic annullava il cambio; dopo un errore i testi scritti sparivano.
 - **Causa:** React 19, dopo un modulo con `action={...}`, richiama `form.reset()`. Per un `<select>` non controllato il valore iniziale non viene aggiornato (nemmeno con `key`), quindi il reset riporta il primo valore originale.
 - **Soluzione:** `ActionForm` (`src/components/admin/action-form.tsx`) gestisce l'invio a mano (`preventDefault` + `startTransition`) e non fa reset; `resetOnSuccess` svuota solo il modulo dei messaggi dopo un invio riuscito.
 - **Verifica:** e2e «cambio stato con nota»: il menu mostra lo stato appena salvato e un secondo invio dello stesso stato dà l'errore chiaro.
 
-## 17. Cancellare una foto dal portfolio lasciava il file nello Storage (2026-11-23)
+## 22. Cancellare una foto dal portfolio lasciava il file nello Storage (2026-11-23)
 - **Problema:** «Elimina» rimuoveva la riga ma l'oggetto restava nel bucket `portfolio`, senza alcun errore.
 - **Causa:** l'API di Storage cancella con `DELETE ... RETURNING` e per vedere la riga serve anche una policy SELECT; per il bucket `portfolio` c'erano solo insert/update/delete per gli admin.
 - **Soluzione:** migrazione additiva `20261123140000_portfolio_admin_select.sql` (SELECT solo admin; la lettura pubblica delle foto non passa dalle policy).
-- **Verifica:** e2e «portfolio» (l'oggetto non c'è più nel bucket dopo l'eliminazione); `rls_smoke.sql` T48 (l'admin vede gli oggetti) e T49 (il cliente no).
+- **Verifica:** e2e «portfolio» (l'oggetto non c'è più nel bucket dopo l'eliminazione); `rls_smoke.sql` T54 (l'admin vede gli oggetti) e T55 (il cliente no).
 
-## 18. Caricamento foto muto da un indirizzo http interno (2026-11-23)
+## 23. Caricamento foto muto da un indirizzo http interno (2026-11-23)
 - **Problema:** nei test (indirizzo `http://pf-web:3000`) il pulsante «Carica» non dava né esito né errore.
 - **Causa:** `crypto.randomUUID()` esiste solo nei contesti sicuri (https o localhost): da `pf-web` lanciava un'eccezione dentro la transizione, senza messaggio.
 - **Soluzione:** nome file UUID v4 generato con `crypto.getRandomValues`, e `try/catch` che mostra «Caricamento non riuscito» per qualsiasi eccezione.
 - **Verifica:** e2e «portfolio» da `pf-web`: foto caricata, pubblicata, eliminata.
 
-## 19. Collaudo RLS fragile sul database condiviso (2026-11-23)
+## 24. Collaudo RLS fragile sul database condiviso (2026-11-23)
 - **Problema:** `rls_smoke.sql` dava falsi rossi: «admin vede tutte = 2» falliva appena nel DB c'erano altre richieste, e i test del pannello alteravano i dati su cui contano i test delle notifiche (N1-N30).
 - **Causa:** conteggi assoluti su tabelle condivise (richieste, notifiche) e ordine dei blocchi: il cambio stato di `rb` aggiunge eventi all'outbox.
-- **Soluzione:** i conteggi riguardano solo i dati di prova (`id in (ra, rb)`, `user_id <> ...`); il blocco del pannello (T28-T49) gira dopo quello delle notifiche. Un'altra trappola: l'MCP annulla in automatico le istruzioni senza `WHERE`; ogni `UPDATE` del collaudo ha una condizione.
+- **Soluzione:** i conteggi riguardano solo i dati di prova (`id in (ra, rb)`, `user_id <> ...`); il blocco del pannello (T34-T55) gira dopo quello delle notifiche. Un'altra trappola: l'MCP annulla in automatico le istruzioni senza `WHERE`; ogni `UPDATE` del collaudo ha una condizione.
 - **Verifica:** `rls_smoke.sql` completo tutto `true` con altre richieste presenti nel database.
 
-## 20. e2e del pannello: due trabocchetti del server di sviluppo (2026-11-23)
+## 25. e2e del pannello: due trabocchetti del server di sviluppo (2026-11-23)
 - **Problema:** (a) `getByRole("alert")` trovava due elementi; (b) i test non vedevano le modifiche ai file appena salvati.
 - **Causa:** (a) Next inserisce un suo `role="alert"` (route announcer) in ogni pagina; (b) con il volume montato dall'host il server di sviluppo a volte non ricompila al volo.
 - **Soluzione:** (a) gli esiti si cercano dentro il modulo (`form.getByRole(...)`); (b) dopo modifiche al codice si riavvia il servizio (`docker compose -p pf-admin restart app`) prima degli e2e.

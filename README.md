@@ -526,3 +526,68 @@ impostata. Il collaudo SQL è `supabase/tests/rls_smoke.sql` (etichette `N1`..`N
 - **Pulizia**: le righe consegnate restano nell'outbox. Una pulizia periodica (per esempio dopo 90 giorni) si può unire
   al job di conservazione dati (F1.14).
 - **Contenuto delle email**: dicono "c'è un nuovo messaggio/file" e rimandano all'area riservata; non riportano il testo.
+
+## Area clienti (F1.8)
+
+Pagine (tutte `noindex`, tutte dietro `requireUser`):
+
+| Percorso | Cosa fa |
+|----------|---------|
+| `/[locale]/area-clienti` | elenco delle proprie richieste, con link al dettaglio e al profilo |
+| `/[locale]/area-clienti/[codice]` | dettaglio per codice pubblico (`PF-26-0001`): dati, campi dinamici con le etichette della `form_schema`, timeline degli stati visibili al cliente, file, conversazione |
+| `/[locale]/area-clienti/[codice]/file/[id]` | download di un proprio file (redirect a un URL firmato di 60 secondi) |
+| `/[locale]/area-clienti/profilo` | modifica di nome, telefono, lingua; "Elimina il mio account" |
+| `/[locale]/account-eliminato` | conferma pubblica dopo l'eliminazione |
+
+La barriera è la RLS: ogni lettura usa il client della sessione, e il dettaglio filtra anche per `customer_id`
+(un admin che apre il codice di un altro cliente ottiene 404 da questa pagina).
+
+### Caricamento file (Q10)
+
+1. Il browser valida estensione (`stl 3mf step stp obj jpg jpeg png webp heic pdf zip`) e dimensione
+   (massimo `site_settings.max_upload_bytes`, mai oltre 100 MB), poi carica **direttamente** su Supabase Storage,
+   bucket privato `request-files`, percorso `<request_id>/<uuid>-<nome-sanificato>`, con barra di avanzamento.
+   Più file insieme: si caricano uno dopo l'altro.
+2. Finito il caricamento il browser chiama una Server Action che ricontrolla tutto (proprietà della richiesta,
+   percorso, estensione, dimensione, esistenza dell'oggetto nello Storage), inserisce la riga in `request_files`
+   con la RLS (`uploaded_by = auth.uid()`) e, se la richiesta è in stato `richiesta`, la porta a `file_ricevuti`
+   con la chiave segreta (condizionale: non tocca richieste già avanzate).
+3. Nessun file è pubblico. Il download passa dal server, che genera l'URL firmato con la sessione dell'utente.
+4. Un vincolo del database (`request_files_path_matches_request`) impedisce di registrare un percorso Storage
+   fuori dalla cartella della propria richiesta.
+
+Nota: il piano gratuito di Supabase ha un limite globale di dimensione dei file (50 MB) più basso di quello
+del bucket: per file più grandi serve il piano Pro o il caricamento a blocchi (TUS), non ancora implementato.
+
+### Conversazione (Q35)
+
+Il cliente scrive messaggi di solo testo (1-5000 caratteri, mostrati escapati: niente HTML). Vede i propri e quelli
+dell'admin; le note interne non sono mai visibili (RLS). La pagina si aggiorna all'invio (`revalidatePath`):
+niente realtime, per scelta.
+
+### Elimina il mio account (Q38)
+
+Dal profilo, scrivendo la propria email (il server la confronta con quella della **sessione**, non con il form).
+Poi, con la chiave segreta e solo lato server:
+
+1. si elencano tutti gli oggetti Storage sotto `<request_id>/` di ogni richiesta del cliente e si cancellano;
+   se questo passo fallisce l'account **non** viene eliminato (niente file orfani);
+2. `auth.admin.deleteUser`: la cascata elimina profilo, richieste, cronologia stati, file (righe), messaggi,
+   notifiche ed eventi dell'outbox collegati alle richieste;
+3. si chiude la sessione e si mostra `/account-eliminato`.
+
+Cosa **non** viene eliminato: i log tecnici dei provider (Supabase, Cloudflare) e le copie già sincronizzate sul
+server interno (Q19), che vanno cancellate a mano. Prima del lancio va rivista la conservazione delle commesse
+a 10 anni (Q38): oggi, pre-lancio, l'eliminazione cancella anche le richieste.
+
+### Test dell'area clienti
+
+```bash
+docker compose run --rm app npx vitest run tests/unit/area          # nomi file, estensioni, proprietà, eliminazione (mock)
+docker compose --profile e2e run --rm -e E2E_WITH_SUPABASE=1 e2e e2e/area-clienti.spec.ts --workers=1
+```
+
+L'e2e crea gli utenti `pf-test+area@example.invalid` e `pf-test+area-b@example.invalid` con la chiave segreta
+(il servizio `e2e` legge lo stesso file env dell'app), li elimina in `afterAll` anche se un test fallisce e
+verifica che in DB e Storage non resti nulla. Non lanciarlo insieme ad altri e2e che puliscono `pf-test+%`
+(vedi `solitaria.md`, voce 18).
